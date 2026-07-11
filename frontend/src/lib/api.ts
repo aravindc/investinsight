@@ -28,6 +28,11 @@ export type InvestedValuePoint = {
   valueGbp: string
 }
 
+export type SectorAllocation = {
+  sector: string
+  investedGbp: string
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`)
   if (!res.ok) {
@@ -54,6 +59,10 @@ export function fetchInvestedValueSeries() {
 
 export function fetchMarketValueSeries() {
   return fetchJson<InvestedValuePoint[]>('/portfolio/market-value-series')
+}
+
+export function fetchSectorAllocations() {
+  return fetchJson<SectorAllocation[]>('/portfolio/sector-allocations')
 }
 
 export async function uploadCsv(file: File, hasHeader: boolean) {

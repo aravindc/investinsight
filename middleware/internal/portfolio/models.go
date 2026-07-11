@@ -35,3 +35,10 @@ type HoldingsSummary struct {
 type DividendsSummary struct {
 	TotalDividendsGBP decimal.Decimal `json:"totalDividendsGbp"`
 }
+
+// SectorAllocation is one sector's share of current holdings, by invested
+// (cost basis) value.
+type SectorAllocation struct {
+	Sector      string          `json:"sector"`
+	InvestedGBP decimal.Decimal `json:"investedGbp"`
+}

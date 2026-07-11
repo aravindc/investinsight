@@ -23,6 +23,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/dividends-summary", h.dividendsSummary)
 	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
+	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -73,4 +74,14 @@ func (h *Handler) marketValueSeries(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, series)
+}
+
+func (h *Handler) sectorAllocations(c *gin.Context) {
+	allocations, err := h.repo.SectorAllocations(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to compute sector allocations", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load sector allocations"})
+		return
+	}
+	c.JSON(http.StatusOK, allocations)
 }

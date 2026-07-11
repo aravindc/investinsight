@@ -3,6 +3,7 @@ import { CsvUploadCard } from '@/components/CsvUploadCard'
 import { DividendsSummaryCard } from '@/components/DividendsSummaryCard'
 import { HoldingsSummaryCard } from '@/components/HoldingsSummaryCard'
 import { InvestedValueChart } from '@/components/InvestedValueChart'
+import { SectorAllocationChart } from '@/components/SectorAllocationChart'
 import { TransactionsTable } from '@/components/TransactionsTable'
 
 const queryClient = new QueryClient()
@@ -20,6 +21,7 @@ function App() {
           <HoldingsSummaryCard />
           <DividendsSummaryCard />
         </div>
+        <SectorAllocationChart />
         <InvestedValueChart />
         <TransactionsTable />
       </div>

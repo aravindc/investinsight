@@ -34,6 +34,8 @@ Gin-based API server that serves the portfolio ledger to the frontend.
 - `internal/marketprice` — Yahoo Finance chart API client, ticker→symbol
   mapping, the `market_prices` table repository, and the pricing service
   (backfill + current-price lookup) used by the holdings market value.
+- `internal/sector` — static ticker→sector mapping used by the sector
+  allocation endpoint.
 
 ## Migrations
 
@@ -103,6 +105,10 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   exist (matched on `action` + `transaction_time` + `isin` + `internal_id`,
   see [Deduplication](#deduplication)) and were skipped rather than
   re-inserted; `errors` lists CSV rows that failed to parse.
+- `GET /api/portfolio/sector-allocations` — current holdings' invested
+  (cost basis) value grouped by sector, sorted descending. Sectors come
+  from a static ticker→sector mapping (`internal/sector`), not a live data
+  source; see [Sector allocation](#sector-allocation).
 - `POST /api/market-prices/backfill` — fetch and store daily closing
   prices, from each instrument's first BUY date to today, for every
   instrument missing history (or top up instruments only missing recent
@@ -171,6 +177,31 @@ daily share count (from `portfolio_transactions`) and a daily closing price
   instrument-day (slow), the full FX rate history for each non-GBP
   currency in the series is fetched once per request and looked up by
   date in memory.
+
+## Sector allocation
+
+`GET /api/portfolio/sector-allocations` groups current holdings' invested
+(cost basis) value by sector, for the dashboard's sector pie chart.
+
+- **Static mapping, not a live lookup**: `internal/sector` hand-maps each
+  ticker to a sector. There's no sector field anywhere upstream (broker
+  CSVs, the `instruments` table, or the Yahoo chart API already in use), so
+  this is maintained by hand rather than fetched — it needs a manual update
+  when a new ticker outside the map is bought for the first time (it falls
+  back to `Other` until then).
+- **Options-income wrapper products** (e.g. `AAPI`/IncomeShares Apple
+  Options, `MSTP`/YieldMax MSTR) are categorized by their *underlying*
+  stock's sector, not as their own asset class — `internal/sector`'s
+  `underlyingTicker` map resolves the wrapper to its underlying before the
+  sector lookup. Multi-stock basket wrappers (e.g. IncomeShares Magnificent
+  7, YieldMax Big Tech) have no single underlying and fall into
+  `Funds & ETFs` instead.
+- **Funds & ETFs** is its own bucket for diversified instruments (index
+  funds, investment trusts, bond/commodity ETFs) rather than attributing
+  them to one sector.
+- Based on invested (cost basis) value, the same basis as the holdings
+  summary card — not live market value, so it has no Yahoo Finance
+  dependency and is never affected by unpriceable instruments.
 
 ## Deduplication
 

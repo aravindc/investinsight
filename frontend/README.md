@@ -28,6 +28,10 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
   series client-side. The market value line starts as early as any held
   instrument has price data — usually close to the invested value line's
   start — with a note above the chart on the rare occasion it starts later.
+- **Holdings by sector pie chart** — current holdings' invested (cost basis)
+  value grouped by sector, using a static ticker-to-sector mapping in the
+  middleware. Capped at 8 slices (the validated categorical palette size);
+  the smallest sectors beyond that fold into "Other".
 - **Transactions table** — recent ledger entries, filterable by type and
   instrument (client-side, via TanStack Table column filters).
 
@@ -44,7 +48,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects six endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects seven endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -59,6 +63,8 @@ The dashboard expects six endpoints from the middleware (`src/lib/api.ts`):
   instrument has price data. Each day is a best-effort total — a holding
   without a price for that specific day is simply omitted from that day's
   sum, not from the whole series.
+- `GET /api/portfolio/sector-allocations` — current holdings' invested
+  value (GBP) grouped by sector, sorted descending.
 - `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`);
   returns `{ inserted, duplicate, errors }`.
 

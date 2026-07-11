@@ -3,10 +3,13 @@ package portfolio
 import (
 	"context"
 	"database/sql"
+	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
+
+	"investinsight/middleware/internal/sector"
 )
 
 type Repository struct {
@@ -216,6 +219,32 @@ func (r *Repository) InvestedValueSeries(ctx context.Context) ([]ValuePoint, err
 	}
 
 	return series, rows.Err()
+}
+
+// SectorAllocations groups current holdings' invested (cost basis) value by
+// sector, using the static ticker-to-sector mapping. Returned in descending
+// order by invested value.
+func (r *Repository) SectorAllocations(ctx context.Context) ([]SectorAllocation, error) {
+	holdings, err := r.CurrentHoldings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	byS := make(map[string]decimal.Decimal)
+	for _, h := range holdings {
+		s := sector.ForTicker(h.Ticker)
+		byS[s] = byS[s].Add(h.InvestedGBP)
+	}
+
+	allocations := make([]SectorAllocation, 0, len(byS))
+	for s, v := range byS {
+		allocations = append(allocations, SectorAllocation{Sector: s, InvestedGBP: v.Round(2)})
+	}
+	sort.Slice(allocations, func(i, j int) bool {
+		return allocations[i].InvestedGBP.GreaterThan(allocations[j].InvestedGBP)
+	})
+
+	return allocations, nil
 }
 
 // DividendsSummary sums net dividend income received across all holdings.
