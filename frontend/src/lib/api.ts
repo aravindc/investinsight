@@ -56,6 +56,7 @@ export type PortfolioIrr = {
 export type PassiveIncome = {
   yieldPercent: string
   trailingYearGbp: string
+  changePercent: string | null
 }
 
 async function fetchJson<T>(path: string): Promise<T> {

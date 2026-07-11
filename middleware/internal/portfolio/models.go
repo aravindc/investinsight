@@ -78,8 +78,11 @@ type PortfolioIRR struct {
 
 // PassiveIncome reports a trailing-12-month income yield: dividend and
 // interest income received in the last 365 days, as a percentage of
-// current market value.
+// current market value. ChangePercent compares TrailingYearGBP against the
+// preceding 365-day period (365-730 days ago) and is nil if that prior
+// period had no income to divide by.
 type PassiveIncome struct {
-	YieldPercent    decimal.Decimal `json:"yieldPercent"`
-	TrailingYearGBP decimal.Decimal `json:"trailingYearGbp"`
+	YieldPercent    decimal.Decimal  `json:"yieldPercent"`
+	TrailingYearGBP decimal.Decimal  `json:"trailingYearGbp"`
+	ChangePercent   *decimal.Decimal `json:"changePercent"`
 }

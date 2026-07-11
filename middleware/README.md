@@ -123,7 +123,9 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   [Portfolio IRR](#portfolio-irr).
 - `GET /api/portfolio/passive-income` — trailing-12-month dividend and
   interest income as a percentage of current market value. Returns
-  `{ yieldPercent, trailingYearGbp }`.
+  `{ yieldPercent, trailingYearGbp, changePercent }`, `changePercent` the
+  % change vs. the preceding 12-month period (`null` if that period had no
+  income).
 - `POST /api/market-prices/backfill` — fetch and store daily closing
   prices, from each instrument's first BUY date to today, for every
   instrument missing history (or top up instruments only missing recent
@@ -259,6 +261,14 @@ yield: `DIVIDEND` + `INTEREST` income received in the last 365 days
 (`Repository.TrailingYearIncome`), divided by current market value. Zero
 if there's no current market value to divide by. This is backward-looking
 (actual income received), not a forward-looking projected yield.
+
+- **`changePercent`**: compares the trailing-365-day income total against
+  the preceding 365-day period (365-730 days ago), both computed by the
+  same `TrailingYearIncome` query so they're consistent as of the same
+  `NOW()`. This is a change in the raw income *amount*, not in the yield
+  percentage — it doesn't account for market value changing between the
+  two periods, so it answers "is my income growing?" rather than "is my
+  yield improving?".
 
 ## Deduplication
 

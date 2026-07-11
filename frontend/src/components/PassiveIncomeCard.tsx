@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { HelpCircle, PiggyBank } from 'lucide-react'
+import { HelpCircle, PiggyBank, TrendingDown, TrendingUp } from 'lucide-react'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Tooltip,
@@ -9,11 +9,22 @@ import {
 import { fetchPassiveIncome } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
+function formatSignedPercent(value: number) {
+  const formatted = `${Math.abs(value).toFixed(1)}%`
+  return value < 0 ? `-${formatted}` : `+${formatted}`
+}
+
 export function PassiveIncomeCard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['passive-income'],
     queryFn: fetchPassiveIncome,
   })
+
+  const changePercent = data?.changePercent !== null && data?.changePercent !== undefined
+    ? Number(data.changePercent)
+    : null
+  const isIncrease = (changePercent ?? 0) >= 0
+  const TrendIcon = isIncrease ? TrendingUp : TrendingDown
 
   return (
     <Card>
@@ -29,7 +40,8 @@ export function PassiveIncomeCard() {
             </TooltipTrigger>
             <TooltipContent>
               Dividend and interest income received in the last 12 months,
-              as a percentage of current market value.
+              as a percentage of current market value. The change compares
+              that to the preceding 12-month period.
             </TooltipContent>
           </Tooltip>
         </div>
@@ -44,8 +56,20 @@ export function PassiveIncomeCard() {
         )}
         {data && (
           <>
-            <p className="mt-3 text-3xl font-semibold">
+            <p className="mt-3 flex items-baseline gap-2 text-3xl font-semibold">
               {data.yieldPercent}%
+              {changePercent !== null && (
+                <span
+                  className={
+                    isIncrease
+                      ? 'flex items-center gap-0.5 text-sm font-medium text-green-600 dark:text-green-400'
+                      : 'text-destructive flex items-center gap-0.5 text-sm font-medium'
+                  }
+                >
+                  <TrendIcon className="size-3.5" />
+                  {formatSignedPercent(changePercent)}
+                </span>
+              )}
             </p>
             <p className="text-muted-foreground mt-1 text-sm">
               {formatGbp(data.trailingYearGbp)} annually

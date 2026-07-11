@@ -39,7 +39,8 @@ React Router (`src/App.tsx`, pages in `src/pages/`):
     activity yet" message instead of a number if a rate isn't defined
     (e.g. a very new portfolio).
   - **Passive income card** — trailing-12-month dividend and interest
-    income as a percentage of current market value, with the underlying
+    income as a percentage of current market value, with a badge showing
+    the % change vs. the preceding 12-month period, and the underlying
     annual GBP total shown underneath.
   - **Sector allocation section** — a pie chart (current holdings' invested
     value grouped by sector, using a static ticker-to-sector mapping in the
@@ -112,7 +113,8 @@ The dashboard expects eleven endpoints from the middleware (`src/lib/api.ts`):
   defined.
 - `GET /api/portfolio/passive-income` — trailing-12-month dividend and
   interest income as a percentage of current market value. Returns
-  `{ yieldPercent, trailingYearGbp }`.
+  `{ yieldPercent, trailingYearGbp, changePercent }`, `changePercent` a
+  decimal or `null` if the preceding 12-month period had no income.
 - `GET /api/portfolio/monthly-dividends` — total dividend income (GBP) per
   calendar month across the full ledger history, ordered chronologically.
   Powers both the dividends-received (cumulative) and dividend-growth

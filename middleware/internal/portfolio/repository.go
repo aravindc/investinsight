@@ -237,19 +237,25 @@ func (r *Repository) DividendsSummary(ctx context.Context) (*DividendsSummary, e
 }
 
 // TrailingYearIncome sums dividend and interest income received in the
-// last 365 days. Used as the numerator for the passive-income yield.
-func (r *Repository) TrailingYearIncome(ctx context.Context) (decimal.Decimal, error) {
+// last 365 days (the numerator for the passive-income yield) and in the
+// preceding 365 days (365-730 days ago), for a year-over-year comparison.
+func (r *Repository) TrailingYearIncome(ctx context.Context) (trailing, prior decimal.Decimal, err error) {
 	query := `
-		SELECT COALESCE(SUM(net_amount_gbp), 0)
+		SELECT
+			COALESCE(SUM(net_amount_gbp) FILTER (
+				WHERE timestamp >= NOW() - INTERVAL '365 days'
+			), 0) AS trailing,
+			COALESCE(SUM(net_amount_gbp) FILTER (
+				WHERE timestamp >= NOW() - INTERVAL '730 days'
+				AND timestamp < NOW() - INTERVAL '365 days'
+			), 0) AS prior
 		FROM portfolio_transactions
-		WHERE entry_type IN ('DIVIDEND', 'INTEREST')
-		AND timestamp >= NOW() - INTERVAL '365 days';`
+		WHERE entry_type IN ('DIVIDEND', 'INTEREST');`
 
-	var total decimal.Decimal
-	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
-		return decimal.Zero, err
+	if err := r.db.QueryRowContext(ctx, query).Scan(&trailing, &prior); err != nil {
+		return decimal.Zero, decimal.Zero, err
 	}
-	return total, nil
+	return trailing, prior, nil
 }
 
 // MonthlyDividends returns total dividend income received in each calendar

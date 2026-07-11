@@ -173,7 +173,7 @@ func (s *SummaryService) SectorAllocations(ctx context.Context) ([]SectorAllocat
 // current market value. Zero if there's no current market value to divide
 // by.
 func (s *SummaryService) PassiveIncome(ctx context.Context) (*PassiveIncome, error) {
-	trailingYear, err := s.repo.TrailingYearIncome(ctx)
+	trailingYear, priorYear, err := s.repo.TrailingYearIncome(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -189,6 +189,14 @@ func (s *SummaryService) PassiveIncome(ctx context.Context) (*PassiveIncome, err
 			Div(holdings.MarketValueGBP).
 			Mul(decimal.NewFromInt(100)).
 			Round(2)
+	}
+	if priorYear.IsPositive() {
+		change := trailingYear.
+			Sub(priorYear).
+			Div(priorYear).
+			Mul(decimal.NewFromInt(100)).
+			Round(2)
+		result.ChangePercent = &change
 	}
 	return result, nil
 }
