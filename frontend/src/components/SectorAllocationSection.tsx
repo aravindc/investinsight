@@ -143,7 +143,7 @@ export function SectorAllocationSection() {
         <CardHeader>
           <CardTitle>Portfolio</CardTitle>
         </CardHeader>
-        <CardContent className="h-80">
+        <CardContent className="h-64">
           {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
           {error && (
             <p className="text-destructive text-sm">Failed to load sector allocations.</p>
@@ -257,7 +257,7 @@ function SectorRow({
   const isGain = gain >= 0
 
   return (
-    <TableRow>
+    <TableRow style={{ borderLeft: `3px solid ${color}` }}>
       <TableCell>
         <div className="flex items-center gap-3">
           <span
