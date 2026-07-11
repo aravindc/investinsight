@@ -1,7 +1,6 @@
 import { InvestedValueChart } from '@/components/InvestedValueChart'
 import { SectorAllocationChart } from '@/components/SectorAllocationChart'
 import { TotalProfitCard } from '@/components/TotalProfitCard'
-import { TransactionsTable } from '@/components/TransactionsTable'
 import { ValueCard } from '@/components/ValueCard'
 
 export function HoldingsPage() {
@@ -13,7 +12,6 @@ export function HoldingsPage() {
         <SectorAllocationChart />
       </div>
       <InvestedValueChart />
-      <TransactionsTable />
     </div>
   )
 }

@@ -1,4 +1,4 @@
-import { Coins, LayoutDashboard, Settings } from 'lucide-react'
+import { Coins, LayoutDashboard, Receipt, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 const LINKS = [
   { to: '/', label: 'Holdings', icon: LayoutDashboard, end: true },
   { to: '/dividends', label: 'Dividends', icon: Coins, end: false },
+  { to: '/transactions', label: 'Transactions', icon: Receipt, end: false },
   { to: '/admin', label: 'Admin', icon: Settings, end: false },
 ] as const
 

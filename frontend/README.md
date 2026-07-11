@@ -43,13 +43,14 @@ React Router (`src/App.tsx`, pages in `src/pages/`):
     as any held instrument has price data — usually close to the invested
     value line's start — with a note above the chart on the rare occasion
     it starts later.
-  - **Transactions table** — recent ledger entries, filterable by type and
-    instrument (client-side, via TanStack Table column filters).
 - **Dividends** (`/dividends`):
   - **Dividends received chart** — cumulative dividend income received to
     date, month by month, with the running total shown as a badge.
   - **Dividend growth chart** — dividend income by calendar month, grouped
     bars comparing each year present in the ledger side by side.
+- **Transactions** (`/transactions`):
+  - **Transactions table** — recent ledger entries, filterable by type and
+    instrument (client-side, via TanStack Table column filters).
 - **Admin** (`/admin`) — operational actions, not analysis:
   - **Import transactions card** — upload a broker CSV export. Reports how
     many transactions were newly imported vs. skipped as duplicates, plus

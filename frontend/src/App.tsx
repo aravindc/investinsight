@@ -6,6 +6,7 @@ import { ThemeProvider } from '@/lib/theme'
 import { AdminPage } from '@/pages/AdminPage'
 import { DividendsPage } from '@/pages/DividendsPage'
 import { HoldingsPage } from '@/pages/HoldingsPage'
+import { TransactionsPage } from '@/pages/TransactionsPage'
 
 const queryClient = new QueryClient()
 
@@ -21,6 +22,7 @@ function App() {
                 <Routes>
                   <Route path="/" element={<HoldingsPage />} />
                   <Route path="/dividends" element={<DividendsPage />} />
+                  <Route path="/transactions" element={<TransactionsPage />} />
                   <Route path="/admin" element={<AdminPage />} />
                 </Routes>
               </main>
