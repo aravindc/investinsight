@@ -91,13 +91,13 @@ export function TotalProfitCard() {
         )}
         {holdings.data && (
           <>
-            <p className="mt-3 flex items-baseline gap-2 text-3xl font-semibold">
-              {formatSigned(profit)}
+            <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-3xl font-semibold">
+              <span className="whitespace-nowrap">{formatSigned(profit)}</span>
               <span
                 className={
                   isProfit
-                    ? 'flex items-center gap-0.5 text-sm font-medium text-green-600 dark:text-green-400'
-                    : 'text-destructive flex items-center gap-0.5 text-sm font-medium'
+                    ? 'flex items-center gap-0.5 text-sm font-medium whitespace-nowrap text-green-600 dark:text-green-400'
+                    : 'text-destructive flex items-center gap-0.5 text-sm font-medium whitespace-nowrap'
                 }
               >
                 <TrendIcon className="size-3.5" />
