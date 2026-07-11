@@ -105,7 +105,22 @@ go build -o csv_loader .
 
 Use `-h=false` if the CSV file has no header row.
 
-### 4. Run the frontend
+### 4. Backfill market prices
+
+```sh
+curl -X POST http://localhost:3000/api/market-prices/backfill
+```
+
+Fetches and stores daily closing prices (from each instrument's earliest
+share-affecting transaction to today) from Yahoo Finance. Not required
+before using the dashboard — holdings market value always live-fetches
+recent prices on read — but running it once populates history for older
+dates and is required for the market value chart, which needs full
+historical coverage across every currently-held instrument. Requires
+outbound internet access from the middleware. See
+[`middleware/README.md`](middleware/README.md#market-prices) for details.
+
+### 5. Run the frontend
 
 ```sh
 cd frontend

@@ -8,12 +8,13 @@ import (
 )
 
 type Handler struct {
-	repo *Repository
-	log  *zap.Logger
+	repo    *Repository
+	summary *SummaryService
+	log     *zap.Logger
 }
 
-func NewHandler(repo *Repository, log *zap.Logger) *Handler {
-	return &Handler{repo: repo, log: log}
+func NewHandler(repo *Repository, summary *SummaryService, log *zap.Logger) *Handler {
+	return &Handler{repo: repo, summary: summary, log: log}
 }
 
 func (h *Handler) RegisterRoutes(router gin.IRouter) {
@@ -21,6 +22,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/holdings-summary", h.holdingsSummary)
 	router.GET("/portfolio/dividends-summary", h.dividendsSummary)
 	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
+	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -34,7 +36,7 @@ func (h *Handler) listTransactions(c *gin.Context) {
 }
 
 func (h *Handler) holdingsSummary(c *gin.Context) {
-	summary, err := h.repo.HoldingsSummary(c.Request.Context())
+	summary, err := h.summary.HoldingsSummary(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to compute holdings summary", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load holdings summary"})
@@ -58,6 +60,16 @@ func (h *Handler) investedValueSeries(c *gin.Context) {
 	if err != nil {
 		h.log.Error("failed to compute invested value series", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load invested value series"})
+		return
+	}
+	c.JSON(http.StatusOK, series)
+}
+
+func (h *Handler) marketValueSeries(c *gin.Context) {
+	series, err := h.summary.MarketValueSeries(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to compute market value series", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load market value series"})
 		return
 	}
 	c.JSON(http.StatusOK, series)

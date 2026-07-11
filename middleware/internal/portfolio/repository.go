@@ -3,7 +3,9 @@ package portfolio
 import (
 	"context"
 	"database/sql"
+	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -46,48 +48,130 @@ func (r *Repository) ListTransactions(ctx context.Context, limit int) ([]Transac
 	return transactions, rows.Err()
 }
 
-// HoldingsSummary computes the invested (cost basis) value of instruments
-// still held: net shares (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION)
-// greater than zero, summing net BUY/SELL cash flow for those instruments.
-// Market value is not yet available (no price feed) and is reported as zero.
-func (r *Repository) HoldingsSummary(ctx context.Context) (*HoldingsSummary, error) {
-	query := `
-		SELECT COALESCE(SUM(invested_gbp), 0)
-		FROM (
-			SELECT
-				instrument_id,
-				SUM(
-					CASE entry_type
-						WHEN 'BUY' THEN shares
-						WHEN 'SELL' THEN -shares
-						WHEN 'STOCK_SPLIT' THEN shares
-						WHEN 'STOCK_DISTRIBUTION' THEN shares
-						WHEN 'ACQUISITION' THEN shares
-						ELSE 0
-					END
-				) AS net_shares,
-				SUM(
-					CASE entry_type
-						WHEN 'BUY' THEN net_amount_gbp
-						WHEN 'SELL' THEN -net_amount_gbp
-						ELSE 0
-					END
-				) AS invested_gbp
-			FROM portfolio_transactions
-			WHERE instrument_id IS NOT NULL
-			GROUP BY instrument_id
-		) per_instrument
-		WHERE net_shares > 0;`
+// CurrentHolding is one instrument still held, with its net share count and
+// net invested (cost basis) amount.
+type CurrentHolding struct {
+	InstrumentID uuid.UUID
+	Ticker       string
+	BaseCurrency string
+	NetShares    decimal.Decimal
+	InvestedGBP  decimal.Decimal
+}
 
-	var invested decimal.Decimal
-	if err := r.db.QueryRowContext(ctx, query).Scan(&invested); err != nil {
+// CurrentHoldings lists every instrument with net shares
+// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
+// i.e. still held today.
+func (r *Repository) CurrentHoldings(ctx context.Context) ([]CurrentHolding, error) {
+	query := `
+		SELECT
+			i.id, i.ticker, i.base_currency,
+			SUM(
+				CASE pt.entry_type
+					WHEN 'BUY' THEN pt.shares
+					WHEN 'SELL' THEN -pt.shares
+					WHEN 'STOCK_SPLIT' THEN pt.shares
+					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
+					WHEN 'ACQUISITION' THEN pt.shares
+					ELSE 0
+				END
+			) AS net_shares,
+			SUM(
+				CASE pt.entry_type
+					WHEN 'BUY' THEN pt.net_amount_gbp
+					WHEN 'SELL' THEN -pt.net_amount_gbp
+					ELSE 0
+				END
+			) AS invested_gbp
+		FROM portfolio_transactions pt
+		JOIN instruments i ON i.id = pt.instrument_id
+		GROUP BY i.id, i.ticker, i.base_currency
+		HAVING SUM(
+			CASE pt.entry_type
+				WHEN 'BUY' THEN pt.shares
+				WHEN 'SELL' THEN -pt.shares
+				WHEN 'STOCK_SPLIT' THEN pt.shares
+				WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
+				WHEN 'ACQUISITION' THEN pt.shares
+				ELSE 0
+			END
+		) > 0;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
 		return nil, err
 	}
+	defer rows.Close()
 
-	return &HoldingsSummary{
-		InvestedValueGBP: invested,
-		MarketValueGBP:   decimal.Zero,
-	}, nil
+	var holdings []CurrentHolding
+	for rows.Next() {
+		var h CurrentHolding
+		if err := rows.Scan(&h.InstrumentID, &h.Ticker, &h.BaseCurrency, &h.NetShares, &h.InvestedGBP); err != nil {
+			return nil, err
+		}
+		holdings = append(holdings, h)
+	}
+	return holdings, rows.Err()
+}
+
+// ShareDelta is one day's net change in shares held for an instrument.
+type ShareDelta struct {
+	InstrumentID uuid.UUID
+	Date         time.Time
+	SharesDelta  decimal.Decimal
+}
+
+// ShareDeltasForCurrentHoldings returns every day with a share-count change
+// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) for instruments
+// that are still held today, ordered by instrument then date. Callers
+// compute running per-instrument totals via a cumulative sum over this
+// list, then join against daily prices to reconstruct historical value.
+func (r *Repository) ShareDeltasForCurrentHoldings(ctx context.Context) ([]ShareDelta, error) {
+	query := `
+		SELECT pt.instrument_id, DATE(pt.timestamp) AS day,
+			SUM(
+				CASE pt.entry_type
+					WHEN 'BUY' THEN pt.shares
+					WHEN 'SELL' THEN -pt.shares
+					WHEN 'STOCK_SPLIT' THEN pt.shares
+					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
+					WHEN 'ACQUISITION' THEN pt.shares
+					ELSE 0
+				END
+			) AS shares_delta
+		FROM portfolio_transactions pt
+		WHERE pt.instrument_id IN (
+			SELECT instrument_id
+			FROM portfolio_transactions
+			GROUP BY instrument_id
+			HAVING SUM(
+				CASE entry_type
+					WHEN 'BUY' THEN shares
+					WHEN 'SELL' THEN -shares
+					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_DISTRIBUTION' THEN shares
+					WHEN 'ACQUISITION' THEN shares
+					ELSE 0
+				END
+			) > 0
+		)
+		GROUP BY pt.instrument_id, DATE(pt.timestamp)
+		ORDER BY pt.instrument_id, day;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var deltas []ShareDelta
+	for rows.Next() {
+		var d ShareDelta
+		if err := rows.Scan(&d.InstrumentID, &d.Date, &d.SharesDelta); err != nil {
+			return nil, err
+		}
+		deltas = append(deltas, d)
+	}
+	return deltas, rows.Err()
 }
 
 // InvestedValueSeries returns the cumulative net capital invested (BUY minus
@@ -123,12 +207,12 @@ func (r *Repository) InvestedValueSeries(ctx context.Context) ([]ValuePoint, err
 
 	series := []ValuePoint{}
 	for rows.Next() {
-		var day string
+		var day time.Time
 		var value decimal.Decimal
 		if err := rows.Scan(&day, &value); err != nil {
 			return nil, err
 		}
-		series = append(series, ValuePoint{Date: day, ValueGBP: value})
+		series = append(series, ValuePoint{Date: day.Format("2006-01-02"), ValueGBP: value})
 	}
 
 	return series, rows.Err()

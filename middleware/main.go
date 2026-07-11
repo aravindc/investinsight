@@ -13,6 +13,7 @@ import (
 	"investinsight/middleware/internal/db"
 	"investinsight/middleware/internal/ingest"
 	appLogger "investinsight/middleware/internal/logger"
+	"investinsight/middleware/internal/marketprice"
 	"investinsight/middleware/internal/migrate"
 	"investinsight/middleware/internal/portfolio"
 )
@@ -53,8 +54,15 @@ func main() {
 
 	api := router.Group("/api")
 
+	marketPriceRepo := marketprice.NewRepository(database)
+	yahooClient := marketprice.NewYahooClient()
+	marketPriceService := marketprice.NewService(marketPriceRepo, yahooClient, logger)
+	marketPriceHandler := marketprice.NewHandler(marketPriceService, logger)
+	marketPriceHandler.RegisterRoutes(api)
+
 	portfolioRepo := portfolio.NewRepository(database)
-	portfolioHandler := portfolio.NewHandler(portfolioRepo, logger)
+	summaryService := portfolio.NewSummaryService(portfolioRepo, marketPriceService, logger)
+	portfolioHandler := portfolio.NewHandler(portfolioRepo, summaryService, logger)
 	portfolioHandler.RegisterRoutes(api)
 
 	ingestEngine := ingest.NewEngine(database)

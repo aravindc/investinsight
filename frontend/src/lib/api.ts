@@ -52,6 +52,10 @@ export function fetchInvestedValueSeries() {
   return fetchJson<InvestedValuePoint[]>('/portfolio/invested-value-series')
 }
 
+export function fetchMarketValueSeries() {
+  return fetchJson<InvestedValuePoint[]>('/portfolio/market-value-series')
+}
+
 export async function uploadCsv(file: File, hasHeader: boolean) {
   const formData = new FormData()
   formData.append('file', file)
