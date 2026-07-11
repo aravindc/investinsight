@@ -90,7 +90,7 @@ export function SectorAllocationChart() {
       <CardHeader>
         <CardTitle>Holdings by sector</CardTitle>
       </CardHeader>
-      <CardContent className="h-40">
+      <CardContent className="h-80">
         {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
         {error && (
           <p className="text-destructive text-sm">Failed to load sector allocations.</p>

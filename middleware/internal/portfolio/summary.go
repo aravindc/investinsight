@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"investinsight/middleware/internal/marketprice"
+	"investinsight/middleware/internal/xirr"
 )
 
 // PriceLookup resolves current and historical instrument prices in GBP,
@@ -69,6 +70,40 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary,
 		InvestedValueGBP: invested,
 		MarketValueGBP:   marketValue.Round(2),
 	}, nil
+}
+
+// PortfolioIRR computes the money-weighted rate of return (XIRR) on
+// invested holdings: every BUY/SELL/DIVIDEND/INTEREST transaction as a
+// dated cash flow, plus today's current market value as a final terminal
+// inflow (as if everything were liquidated today). Deposits/withdrawals
+// are excluded — see Repository.InvestmentCashFlows.
+func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error) {
+	cashFlows, err := s.repo.InvestmentCashFlows(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	holdings, err := s.HoldingsSummary(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	flows := make([]xirr.CashFlow, 0, len(cashFlows)+1)
+	for _, f := range cashFlows {
+		amount, _ := f.AmountGBP.Float64()
+		flows = append(flows, xirr.CashFlow{Date: f.Date, Amount: amount})
+	}
+	if holdings.MarketValueGBP.IsPositive() {
+		terminalValue, _ := holdings.MarketValueGBP.Float64()
+		flows = append(flows, xirr.CashFlow{Date: time.Now().UTC(), Amount: terminalValue})
+	}
+
+	rate, err := xirr.Compute(flows)
+	if err != nil {
+		return nil, err
+	}
+
+	return &PortfolioIRR{IRR: rate}, nil
 }
 
 // MarketValueSeries reconstructs historical portfolio value: for each day,

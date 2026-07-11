@@ -1,4 +1,5 @@
 import { InvestedValueChart } from '@/components/InvestedValueChart'
+import { IrrCard } from '@/components/IrrCard'
 import { SectorAllocationChart } from '@/components/SectorAllocationChart'
 import { TotalProfitCard } from '@/components/TotalProfitCard'
 import { ValueCard } from '@/components/ValueCard'
@@ -9,8 +10,9 @@ export function HoldingsPage() {
       <div className="grid grid-cols-3 gap-6">
         <ValueCard />
         <TotalProfitCard />
-        <SectorAllocationChart />
+        <IrrCard />
       </div>
+      <SectorAllocationChart />
       <InvestedValueChart />
     </div>
   )

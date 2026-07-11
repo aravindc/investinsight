@@ -44,6 +44,10 @@ export type BackfillResult = {
   failed: string[]
 }
 
+export type PortfolioIrr = {
+  irr: number | null
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`)
   if (!res.ok) {
@@ -78,6 +82,10 @@ export function fetchSectorAllocations() {
 
 export function fetchMonthlyDividends() {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends')
+}
+
+export function fetchPortfolioIrr() {
+  return fetchJson<PortfolioIrr>('/portfolio/irr')
 }
 
 export async function backfillMarketPrices() {

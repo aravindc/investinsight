@@ -36,6 +36,8 @@ Gin-based API server that serves the portfolio ledger to the frontend.
   (backfill + current-price lookup) used by the holdings market value.
 - `internal/sector` — static ticker→sector mapping used by the sector
   allocation endpoint.
+- `internal/xirr` — numerical XIRR (money-weighted rate of return) solver,
+  used by the portfolio IRR endpoint.
 
 ## Migrations
 
@@ -113,6 +115,10 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   (cost basis) value grouped by sector, sorted descending. Sectors come
   from a static ticker→sector mapping (`internal/sector`), not a live data
   source; see [Sector allocation](#sector-allocation).
+- `GET /api/portfolio/irr` — money-weighted rate of return (XIRR) on
+  invested holdings. Returns `{ irr }`, `irr` a decimal fraction (e.g.
+  `0.15` for 15%) or `null` if a rate isn't defined yet (too little
+  activity, or the solver didn't converge). See [Portfolio IRR](#portfolio-irr).
 - `POST /api/market-prices/backfill` — fetch and store daily closing
   prices, from each instrument's first BUY date to today, for every
   instrument missing history (or top up instruments only missing recent
@@ -206,6 +212,27 @@ daily share count (from `portfolio_transactions`) and a daily closing price
 - Based on invested (cost basis) value, the same basis as the holdings
   summary card — not live market value, so it has no Yahoo Finance
   dependency and is never affected by unpriceable instruments.
+
+## Portfolio IRR
+
+`GET /api/portfolio/irr` computes the money-weighted rate of return
+(XIRR) on invested holdings — the same calculation as Excel's `XIRR`
+function, solved numerically in `internal/xirr` (Newton-Raphson, falling
+back to bisection if it fails to converge).
+
+- **Cash flows**: every `BUY`/`SELL`/`DIVIDEND`/`INTEREST` transaction's
+  `total_impact_gbp` (already sign-correct per row — negative for `BUY`,
+  positive for the others), plus the current market value
+  (`SummaryService.HoldingsSummary`) as a final terminal inflow, as if
+  everything were liquidated today.
+- **`DEPOSIT`/`WITHDRAWAL` are excluded** — those move money into/out of
+  the ISA cash balance, not into/out of invested holdings, so including
+  them would conflate uninvested cash with actual investment performance.
+- **No rate defined**: if there are fewer than two cash flows, if every
+  flow has the same sign (e.g. only buys and no current market value yet),
+  or if the solver doesn't converge, the endpoint returns `{ irr: null }`
+  rather than an error — this is a normal state for a very new or
+  fully-unpriced portfolio, not a failure.
 
 ## Deduplication
 

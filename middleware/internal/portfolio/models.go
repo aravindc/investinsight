@@ -49,3 +49,18 @@ type MonthlyDividend struct {
 	Month    int             `json:"month"` // 1-12
 	TotalGBP decimal.Decimal `json:"totalGbp"`
 }
+
+// CashFlow is one dated external cash flow into or out of the portfolio's
+// invested holdings (not the ISA cash balance) — negative for money out
+// (a purchase), positive for money in (a sale, dividend, or interest).
+type CashFlow struct {
+	Date      time.Time
+	AmountGBP decimal.Decimal
+}
+
+// PortfolioIRR reports the money-weighted rate of return (XIRR) on
+// invested holdings: BUY/SELL/DIVIDEND/INTEREST cash flows plus current
+// market value as a final terminal inflow.
+type PortfolioIRR struct {
+	IRR float64 `json:"irr"`
+}

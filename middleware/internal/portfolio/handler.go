@@ -5,6 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
+
+	"investinsight/middleware/internal/xirr"
 )
 
 type Handler struct {
@@ -25,6 +27,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
+	router.GET("/portfolio/irr", h.portfolioIRR)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -95,4 +98,27 @@ func (h *Handler) sectorAllocations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, allocations)
+}
+
+func (h *Handler) portfolioIRR(c *gin.Context) {
+	result, err := h.summary.PortfolioIRR(c.Request.Context())
+	if err != nil {
+		switch err {
+		case xirr.ErrNoCashFlows, xirr.ErrNoSignChange:
+			// Not enough activity yet for a rate of return to be defined
+			// (e.g. no transactions, or nothing but buys and no current
+			// market value) — a normal state, not a server error.
+			c.JSON(http.StatusOK, gin.H{"irr": nil})
+			return
+		case xirr.ErrDidNotConverge:
+			h.log.Warn("irr solver did not converge", zap.Error(err))
+			c.JSON(http.StatusOK, gin.H{"irr": nil})
+			return
+		default:
+			h.log.Error("failed to compute portfolio irr", zap.Error(err))
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load portfolio irr"})
+			return
+		}
+	}
+	c.JSON(http.StatusOK, result)
 }

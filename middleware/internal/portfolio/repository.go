@@ -293,3 +293,33 @@ func (r *Repository) MonthlyDividends(ctx context.Context) ([]MonthlyDividend, e
 	}
 	return months, rows.Err()
 }
+
+// InvestmentCashFlows returns every BUY/SELL/DIVIDEND/INTEREST transaction
+// as a dated external cash flow (total_impact_gbp, already sign-correct:
+// negative for BUY, positive for the others), ordered chronologically.
+// Deposits and withdrawals are excluded — those move money into/out of the
+// ISA cash balance, not into/out of invested holdings. Used as the input
+// series for the portfolio's money-weighted rate of return (XIRR).
+func (r *Repository) InvestmentCashFlows(ctx context.Context) ([]CashFlow, error) {
+	query := `
+		SELECT timestamp, total_impact_gbp
+		FROM portfolio_transactions
+		WHERE entry_type IN ('BUY', 'SELL', 'DIVIDEND', 'INTEREST')
+		ORDER BY timestamp;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	flows := []CashFlow{}
+	for rows.Next() {
+		var f CashFlow
+		if err := rows.Scan(&f.Date, &f.AmountGBP); err != nil {
+			return nil, err
+		}
+		flows = append(flows, f)
+	}
+	return flows, rows.Err()
+}

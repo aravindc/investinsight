@@ -31,6 +31,11 @@ React Router (`src/App.tsx`, pages in `src/pages/`):
   - **Total profit card** — market value minus invested value, with a
     gain/loss percentage badge and a daily change line derived from the
     last two points of the market-value series.
+  - **IRR card** — money-weighted annualized rate of return (XIRR) on
+    invested holdings, computed by the middleware from every buy, sell,
+    dividend, and interest payment plus current market value as a final
+    terminal inflow. Shows a "not enough activity yet" message instead of
+    a number if a rate isn't defined (e.g. a very new portfolio).
   - **Holdings by sector pie chart** — current holdings' invested (cost
     basis) value grouped by sector, using a static ticker-to-sector mapping
     in the middleware. Capped at 8 slices (the validated categorical
@@ -74,7 +79,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects nine endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects ten endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -91,6 +96,9 @@ The dashboard expects nine endpoints from the middleware (`src/lib/api.ts`):
   sum, not from the whole series.
 - `GET /api/portfolio/sector-allocations` — current holdings' invested
   value (GBP) grouped by sector, sorted descending.
+- `GET /api/portfolio/irr` — money-weighted rate of return (XIRR) on
+  invested holdings. Returns `{ irr }`, a decimal fraction or `null` if
+  not enough activity exists yet for a rate to be defined.
 - `GET /api/portfolio/monthly-dividends` — total dividend income (GBP) per
   calendar month across the full ledger history, ordered chronologically.
   Powers both the dividends-received (cumulative) and dividend-growth
