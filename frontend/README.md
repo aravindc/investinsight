@@ -10,17 +10,35 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
 - **TanStack Table** for the transactions table
 - **Recharts** for the invested vs. market value chart
 
+## Theme
+
+Light, dark, and system-preference modes, toggled from the header (`src/lib/theme.tsx`,
+`src/components/ThemeToggle.tsx`). The choice persists in `localStorage`; in
+"system" mode it follows the OS preference live via a `matchMedia` listener.
+An inline script in `index.html` applies the right mode before React hydrates,
+so there's no flash of the wrong theme on load.
+
 ## Dashboard
 
 - **Import transactions card** — upload a broker CSV export. Reports how
   many transactions were newly imported vs. skipped as duplicates, plus any
   rows that failed to parse. Successful uploads refresh the holdings,
   dividends, and transactions data automatically.
-- **Current holdings card** — invested (cost basis) value and current
-  market value (GBP) of instruments currently held, priced live from Yahoo
-  Finance by the middleware.
-- **Total dividends card** — dividend income received to date. Shown
-  alongside the holdings card in an even two-column row.
+- **Value card** — current market value (GBP) of instruments held today,
+  priced live from Yahoo Finance by the middleware, with invested (cost
+  basis) value shown underneath.
+- **Total profit card** — market value minus invested value, with a gain/loss
+  percentage badge and a daily change line derived from the last two points
+  of the market-value series.
+- **Holdings by sector pie chart** — current holdings' invested (cost basis)
+  value grouped by sector, using a static ticker-to-sector mapping in the
+  middleware. Capped at 8 slices (the validated categorical palette size);
+  the smallest sectors beyond that fold into "Other". Sits alongside the
+  Value and Total profit cards in one row.
+- **Dividends received chart** — cumulative dividend income received to
+  date, month by month, with the running total shown as a badge.
+- **Dividend growth chart** — dividend income by calendar month, grouped
+  bars comparing each year present in the ledger side by side.
 - **Cumulative invested vs. market value chart** — two lines: running total
   of net capital invested, and historical market value (shares held ×
   closing price, both from the middleware), with period buttons
@@ -28,10 +46,6 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
   series client-side. The market value line starts as early as any held
   instrument has price data — usually close to the invested value line's
   start — with a note above the chart on the rare occasion it starts later.
-- **Holdings by sector pie chart** — current holdings' invested (cost basis)
-  value grouped by sector, using a static ticker-to-sector mapping in the
-  middleware. Capped at 8 slices (the validated categorical palette size);
-  the smallest sectors beyond that fold into "Other".
 - **Transactions table** — recent ledger entries, filterable by type and
   instrument (client-side, via TanStack Table column filters).
 
@@ -48,7 +62,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects seven endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects eight endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -65,6 +79,10 @@ The dashboard expects seven endpoints from the middleware (`src/lib/api.ts`):
   sum, not from the whole series.
 - `GET /api/portfolio/sector-allocations` — current holdings' invested
   value (GBP) grouped by sector, sorted descending.
+- `GET /api/portfolio/monthly-dividends` — total dividend income (GBP) per
+  calendar month across the full ledger history, ordered chronologically.
+  Powers both the dividends-received (cumulative) and dividend-growth
+  (year-over-year) charts client-side.
 - `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`);
   returns `{ inserted, duplicate, errors }`.
 
