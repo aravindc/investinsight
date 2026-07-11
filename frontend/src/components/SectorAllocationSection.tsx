@@ -194,7 +194,7 @@ export function SectorAllocationSection() {
       </Card>
 
       <Card>
-        <CardContent className="h-88 overflow-y-auto p-0">
+        <CardContent className="thin-scrollbar h-88 overflow-y-auto p-0">
           {isLoading && (
             <p className="text-muted-foreground p-6 text-sm">Loading…</p>
           )}
