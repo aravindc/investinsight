@@ -39,6 +39,11 @@ export type MonthlyDividend = {
   totalGbp: string
 }
 
+export type BackfillResult = {
+  instrumentsProcessed: number
+  failed: string[]
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`)
   if (!res.ok) {
@@ -73,6 +78,14 @@ export function fetchSectorAllocations() {
 
 export function fetchMonthlyDividends() {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends')
+}
+
+export async function backfillMarketPrices() {
+  const res = await fetch('/api/market-prices/backfill', { method: 'POST' })
+  if (!res.ok) {
+    throw new Error(`Market price backfill failed: ${res.status}`)
+  }
+  return res.json() as Promise<BackfillResult>
 }
 
 export async function uploadCsv(file: File, hasHeader: boolean) {
