@@ -90,6 +90,50 @@ func (r *Repository) HoldingsSummary(ctx context.Context) (*HoldingsSummary, err
 	}, nil
 }
 
+// InvestedValueSeries returns the cumulative net capital invested (BUY minus
+// SELL cash flow, across all instruments ever traded) as of each day that
+// had BUY/SELL activity. The value at any point is the true running total
+// to date, not reset per period — callers filter/zoom into a date range.
+func (r *Repository) InvestedValueSeries(ctx context.Context) ([]ValuePoint, error) {
+	query := `
+		SELECT
+			day,
+			SUM(net_change) OVER (ORDER BY day) AS cumulative_invested
+		FROM (
+			SELECT
+				DATE(timestamp) AS day,
+				SUM(
+					CASE entry_type
+						WHEN 'BUY' THEN net_amount_gbp
+						WHEN 'SELL' THEN -net_amount_gbp
+						ELSE 0
+					END
+				) AS net_change
+			FROM portfolio_transactions
+			WHERE entry_type IN ('BUY', 'SELL')
+			GROUP BY DATE(timestamp)
+		) daily
+		ORDER BY day;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	series := []ValuePoint{}
+	for rows.Next() {
+		var day string
+		var value decimal.Decimal
+		if err := rows.Scan(&day, &value); err != nil {
+			return nil, err
+		}
+		series = append(series, ValuePoint{Date: day, ValueGBP: value})
+	}
+
+	return series, rows.Err()
+}
+
 // DividendsSummary sums net dividend income received across all holdings.
 func (r *Repository) DividendsSummary(ctx context.Context) (*DividendsSummary, error) {
 	query := `

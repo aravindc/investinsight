@@ -8,6 +8,7 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
 - **Tailwind CSS v4** + **shadcn/ui** (`radix-nova` style) for components
 - **TanStack Query** for data fetching against the middleware API
 - **TanStack Table** for the transactions table
+- **Recharts** for the invested value chart
 
 ## Dashboard
 
@@ -20,6 +21,9 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
   has a live price feed.
 - **Total dividends card** — dividend income received to date. Shown
   alongside the holdings card in an even two-column row.
+- **Cumulative invested value chart** — running total of net capital
+  invested over time, with period buttons (All / 1yr / 3mth / 1mth / 1wk /
+  1day) that zoom into the same underlying series client-side.
 - **Transactions table** — recent ledger entries, filterable by type and
   instrument (client-side, via TanStack Table column filters).
 
@@ -36,7 +40,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects four endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects five endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -44,6 +48,8 @@ The dashboard expects four endpoints from the middleware (`src/lib/api.ts`):
   (GBP) of instruments currently held.
 - `GET /api/portfolio/dividends-summary` — total dividend income received
   to date (GBP).
+- `GET /api/portfolio/invested-value-series` — cumulative invested value
+  (GBP) time series, one point per day with trading activity.
 - `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`);
   returns `{ inserted, duplicate, errors }`.
 

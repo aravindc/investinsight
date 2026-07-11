@@ -20,6 +20,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/transactions", h.listTransactions)
 	router.GET("/portfolio/holdings-summary", h.holdingsSummary)
 	router.GET("/portfolio/dividends-summary", h.dividendsSummary)
+	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -50,4 +51,14 @@ func (h *Handler) dividendsSummary(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, summary)
+}
+
+func (h *Handler) investedValueSeries(c *gin.Context) {
+	series, err := h.repo.InvestedValueSeries(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to compute invested value series", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load invested value series"})
+		return
+	}
+	c.JSON(http.StatusOK, series)
 }

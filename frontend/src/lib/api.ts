@@ -23,6 +23,11 @@ export type CsvUploadResult = {
   errors: string[]
 }
 
+export type InvestedValuePoint = {
+  date: string
+  valueGbp: string
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`)
   if (!res.ok) {
@@ -41,6 +46,10 @@ export function fetchHoldingsSummary() {
 
 export function fetchDividendsSummary() {
   return fetchJson<DividendsSummary>('/portfolio/dividends-summary')
+}
+
+export function fetchInvestedValueSeries() {
+  return fetchJson<InvestedValuePoint[]>('/portfolio/invested-value-series')
 }
 
 export async function uploadCsv(file: File, hasHeader: boolean) {

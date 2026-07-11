@@ -10,7 +10,9 @@ Gin-based API server that serves the portfolio ledger to the frontend.
 - **lib/pq** — Postgres driver
 - **shopspring/decimal** — exact decimal arithmetic for money values (all
   GBP/share amounts are serialized as decimal strings, never `float64`, to
-  avoid binary floating-point rounding)
+  avoid binary floating-point rounding). Note: `ValuePoint.ValueGBP` uses
+  `decimal.Decimal` directly, so it serializes as a quoted JSON string
+  rather than a bare number.
 - **pressly/goose** — SQL schema migrations, embedded into the binary and
   applied automatically on startup
 
@@ -75,6 +77,12 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   feed is wired in.
 - `GET /api/portfolio/dividends-summary` — total dividend income received
   to date (sum of `net_amount_gbp` for `DIVIDEND` entries).
+- `GET /api/portfolio/invested-value-series` — cumulative net capital
+  invested (BUY minus SELL cash flow) as of each day with trading activity,
+  across every instrument ever traded (including fully exited positions).
+  The value at each point is the true running total to date; period
+  filtering (all/1yr/3mth/1mth/1wk/1day) is done client-side by zooming into
+  this same series, not recomputed per window.
 - `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`,
   field `file`; optional `hasHeader` form field, defaults to `true`). Parses
   and ingests the file the same way as `csv_loader`, then normalizes new

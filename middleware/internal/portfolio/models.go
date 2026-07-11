@@ -16,6 +16,12 @@ type Transaction struct {
 	TotalImpactGBP string    `json:"totalImpactGbp"`
 }
 
+// ValuePoint is one day's cumulative value in a time series.
+type ValuePoint struct {
+	Date     string          `json:"date"`
+	ValueGBP decimal.Decimal `json:"valueGbp"`
+}
+
 // HoldingsSummary reports the value of instruments currently held (net
 // shares > 0). InvestedValueGBP is the net cost basis (BUY minus SELL cash
 // flows) for those holdings. MarketValueGBP requires live prices and is

@@ -2,6 +2,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { CsvUploadCard } from '@/components/CsvUploadCard'
 import { DividendsSummaryCard } from '@/components/DividendsSummaryCard'
 import { HoldingsSummaryCard } from '@/components/HoldingsSummaryCard'
+import { InvestedValueChart } from '@/components/InvestedValueChart'
 import { TransactionsTable } from '@/components/TransactionsTable'
 
 const queryClient = new QueryClient()
@@ -19,6 +20,7 @@ function App() {
           <HoldingsSummaryCard />
           <DividendsSummaryCard />
         </div>
+        <InvestedValueChart />
         <TransactionsTable />
       </div>
     </QueryClientProvider>
