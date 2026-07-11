@@ -259,8 +259,12 @@ function SectorRow({
   const isGain = gain >= 0
 
   return (
-    <TableRow style={{ borderLeft: `3px solid ${color}` }}>
-      <TableCell>
+    <TableRow>
+      <TableCell className="relative pl-4">
+        <span
+          className="absolute top-2 bottom-2 left-1.5 w-1 rounded-full"
+          style={{ backgroundColor: color }}
+        />
         <div className="flex items-center gap-3">
           <span
             className="flex size-9 items-center justify-center rounded-md"
