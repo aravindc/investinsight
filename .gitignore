@@ -1,0 +1,23 @@
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Broker exports (personal financial data)
+csv_loader/*.csv
+backend/*.csv
+
+# Compiled binaries
+csv_loader/csv_loader
+middleware/bin/
+*.exe
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# OS / editor cruft
+.DS_Store
+*.swp
+
+wip.*
+csv_loader/
