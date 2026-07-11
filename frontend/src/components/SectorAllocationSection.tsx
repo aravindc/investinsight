@@ -143,7 +143,7 @@ export function SectorAllocationSection() {
         <CardHeader>
           <CardTitle>Portfolio</CardTitle>
         </CardHeader>
-        <CardContent className="h-64">
+        <CardContent className="h-88">
           {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
           {error && (
             <p className="text-destructive text-sm">Failed to load sector allocations.</p>
@@ -194,7 +194,7 @@ export function SectorAllocationSection() {
       </Card>
 
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="h-88 p-0">
           {isLoading && (
             <p className="text-muted-foreground p-6 text-sm">Loading…</p>
           )}
@@ -209,33 +209,35 @@ export function SectorAllocationSection() {
             </p>
           )}
           {!isLoading && allocations.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Name</TableHead>
-                  <TableHead className="text-right">
-                    Value
-                    <br />
-                    Invested
-                  </TableHead>
-                  <TableHead className="text-right">Gain/loss</TableHead>
-                  <TableHead className="text-right">Allocation</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {allocations.map((a) => (
-                  <SectorRow
-                    key={a.sector}
-                    allocation={a}
-                    shareOfPortfolio={
-                      grandTotalInvested > 0
-                        ? Number(a.investedGbp) / grandTotalInvested
-                        : 0
-                    }
-                  />
-                ))}
-              </TableBody>
-            </Table>
+            <div className="h-full overflow-y-auto">
+              <Table>
+                <TableHeader className="bg-card sticky top-0 z-10">
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="text-right">
+                      Value
+                      <br />
+                      Invested
+                    </TableHead>
+                    <TableHead className="text-right">Gain/loss</TableHead>
+                    <TableHead className="text-right">Allocation</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {allocations.map((a) => (
+                    <SectorRow
+                      key={a.sector}
+                      allocation={a}
+                      shareOfPortfolio={
+                        grandTotalInvested > 0
+                          ? Number(a.investedGbp) / grandTotalInvested
+                          : 0
+                      }
+                    />
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
           )}
         </CardContent>
       </Card>
