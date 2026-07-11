@@ -10,6 +10,7 @@ import (
 	"go.uber.org/zap"
 
 	"investinsight/middleware/internal/marketprice"
+	"investinsight/middleware/internal/sector"
 	"investinsight/middleware/internal/xirr"
 )
 
@@ -34,24 +35,29 @@ func NewSummaryService(repo *Repository, prices PriceLookup, logger *zap.Logger)
 	return &SummaryService{repo: repo, prices: prices, logger: logger}
 }
 
-// HoldingsSummary computes invested (cost basis) value and current market
-// value for all instruments still held. If a price lookup fails for an
-// instrument (e.g. unmapped symbol, Yahoo error), that instrument is
-// skipped from the market value total rather than failing the whole
-// request, and the failure is logged.
-func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary, error) {
+// pricedHolding is one current holding with its live market value, if a
+// price could be resolved for it.
+type pricedHolding struct {
+	CurrentHolding
+	MarketValueGBP decimal.Decimal
+	Priced         bool
+}
+
+// pricedHoldings prices every current holding once, for reuse across
+// HoldingsSummary and SectorAllocations. If a price lookup fails for an
+// instrument (e.g. unmapped symbol, Yahoo error), it's returned with
+// Priced=false rather than failing the whole request, and the failure is
+// logged.
+func (s *SummaryService) pricedHoldings(ctx context.Context) ([]pricedHolding, error) {
 	holdings, err := s.repo.CurrentHoldings(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	today := time.Now().UTC()
-	invested := decimal.Zero
-	marketValue := decimal.Zero
+	priced := make([]pricedHolding, 0, len(holdings))
 
 	for _, h := range holdings {
-		invested = invested.Add(h.InvestedGBP)
-
 		price, err := s.prices.ClosePriceGBP(ctx, marketprice.Instrument{
 			ID:           h.InstrumentID,
 			Ticker:       h.Ticker,
@@ -60,10 +66,37 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary,
 		if err != nil {
 			s.logger.Warn("failed to price holding, excluding from market value",
 				zap.String("ticker", h.Ticker), zap.Error(err))
+			priced = append(priced, pricedHolding{CurrentHolding: h})
 			continue
 		}
 
-		marketValue = marketValue.Add(h.NetShares.Mul(price))
+		priced = append(priced, pricedHolding{
+			CurrentHolding: h,
+			MarketValueGBP: h.NetShares.Mul(price).Round(2),
+			Priced:         true,
+		})
+	}
+
+	return priced, nil
+}
+
+// HoldingsSummary computes invested (cost basis) value and current market
+// value for all instruments still held. Holdings that couldn't be priced
+// are excluded from the market value total but still counted in invested
+// value.
+func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary, error) {
+	holdings, err := s.pricedHoldings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	invested := decimal.Zero
+	marketValue := decimal.Zero
+	for _, h := range holdings {
+		invested = invested.Add(h.InvestedGBP)
+		if h.Priced {
+			marketValue = marketValue.Add(h.MarketValueGBP)
+		}
 	}
 
 	return &HoldingsSummary{
@@ -72,13 +105,75 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary,
 	}, nil
 }
 
-// PortfolioIRR computes the money-weighted rate of return (XIRR) on
-// invested holdings: every BUY/SELL/DIVIDEND/INTEREST transaction as a
-// dated cash flow, plus today's current market value as a final terminal
-// inflow (as if everything were liquidated today). Deposits/withdrawals
-// are excluded — see Repository.InvestmentCashFlows.
-func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error) {
-	cashFlows, err := s.repo.InvestmentCashFlows(ctx)
+// SectorAllocations groups current holdings by sector: invested (cost
+// basis) value, current market value, and the unrealized gain/loss
+// between them. GainGBP/GainPercent are zero for a sector if any of its
+// instruments couldn't be priced (a partial market value would understate
+// the sector's true value and produce a misleading loss). Sorted
+// descending by invested value.
+func (s *SummaryService) SectorAllocations(ctx context.Context) ([]SectorAllocation, error) {
+	holdings, err := s.pricedHoldings(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	type sectorTotals struct {
+		instruments int
+		invested    decimal.Decimal
+		marketValue decimal.Decimal
+		fullyPriced bool
+	}
+	byS := make(map[string]*sectorTotals)
+	var order []string
+
+	for _, h := range holdings {
+		name := sector.ForTicker(h.Ticker)
+		t, ok := byS[name]
+		if !ok {
+			t = &sectorTotals{fullyPriced: true}
+			byS[name] = t
+			order = append(order, name)
+		}
+		t.instruments++
+		t.invested = t.invested.Add(h.InvestedGBP)
+		if h.Priced {
+			t.marketValue = t.marketValue.Add(h.MarketValueGBP)
+		} else {
+			t.fullyPriced = false
+		}
+	}
+
+	allocations := make([]SectorAllocation, 0, len(byS))
+	for _, name := range order {
+		t := byS[name]
+		a := SectorAllocation{
+			Sector:          name,
+			InstrumentCount: t.instruments,
+			InvestedGBP:     t.invested.Round(2),
+		}
+		if t.fullyPriced {
+			a.MarketValueGBP = t.marketValue.Round(2)
+			a.GainGBP = t.marketValue.Sub(t.invested).Round(2)
+			if t.invested.IsPositive() {
+				a.GainPercent = a.GainGBP.Div(t.invested).Mul(decimal.NewFromInt(100)).Round(2)
+			}
+		}
+		allocations = append(allocations, a)
+	}
+
+	sort.Slice(allocations, func(i, j int) bool {
+		return allocations[i].InvestedGBP.GreaterThan(allocations[j].InvestedGBP)
+	})
+
+	return allocations, nil
+}
+
+// PassiveIncome reports a trailing-12-month income yield: dividend and
+// interest income received in the last 365 days, as a percentage of
+// current market value. Zero if there's no current market value to divide
+// by.
+func (s *SummaryService) PassiveIncome(ctx context.Context) (*PassiveIncome, error) {
+	trailingYear, err := s.repo.TrailingYearIncome(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -88,22 +183,66 @@ func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error
 		return nil, err
 	}
 
+	result := &PassiveIncome{TrailingYearGBP: trailingYear.Round(2)}
+	if holdings.MarketValueGBP.IsPositive() {
+		result.YieldPercent = trailingYear.
+			Div(holdings.MarketValueGBP).
+			Mul(decimal.NewFromInt(100)).
+			Round(2)
+	}
+	return result, nil
+}
+
+// PortfolioIRR computes the money-weighted rate of return (XIRR) on
+// invested holdings — every BUY/SELL/DIVIDEND/INTEREST transaction as a
+// dated cash flow, plus today's current market value as a final terminal
+// inflow (as if everything were liquidated today); deposits/withdrawals
+// are excluded, see Repository.InvestmentCashFlows — alongside the same
+// calculation restricted to instruments still held today (excluding
+// fully-exited positions and INTEREST, which has no instrument to
+// restrict by; see Repository.CurrentHoldingsCashFlows).
+func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error) {
+	holdings, err := s.HoldingsSummary(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	allFlows, err := s.repo.InvestmentCashFlows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	rate, err := computeIRR(allFlows, holdings.MarketValueGBP)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &PortfolioIRR{IRR: rate}
+
+	currentFlows, err := s.repo.CurrentHoldingsCashFlows(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if currentRate, err := computeIRR(currentFlows, holdings.MarketValueGBP); err == nil {
+		result.CurrentHoldingsIRR = &currentRate
+	}
+
+	return result, nil
+}
+
+// computeIRR converts dated GBP cash flows plus a terminal market value
+// into an XIRR. Returns xirr's sentinel errors unchanged when no rate is
+// defined (too few flows, no sign change, or the solver didn't converge).
+func computeIRR(cashFlows []CashFlow, terminalValueGBP decimal.Decimal) (float64, error) {
 	flows := make([]xirr.CashFlow, 0, len(cashFlows)+1)
 	for _, f := range cashFlows {
 		amount, _ := f.AmountGBP.Float64()
 		flows = append(flows, xirr.CashFlow{Date: f.Date, Amount: amount})
 	}
-	if holdings.MarketValueGBP.IsPositive() {
-		terminalValue, _ := holdings.MarketValueGBP.Float64()
+	if terminalValueGBP.IsPositive() {
+		terminalValue, _ := terminalValueGBP.Float64()
 		flows = append(flows, xirr.CashFlow{Date: time.Now().UTC(), Amount: terminalValue})
 	}
-
-	rate, err := xirr.Compute(flows)
-	if err != nil {
-		return nil, err
-	}
-
-	return &PortfolioIRR{IRR: rate}, nil
+	return xirr.Compute(flows)
 }
 
 // MarketValueSeries reconstructs historical portfolio value: for each day,

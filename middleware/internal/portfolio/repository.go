@@ -3,13 +3,10 @@ package portfolio
 import (
 	"context"
 	"database/sql"
-	"sort"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
-
-	"investinsight/middleware/internal/sector"
 )
 
 type Repository struct {
@@ -224,29 +221,6 @@ func (r *Repository) InvestedValueSeries(ctx context.Context) ([]ValuePoint, err
 // SectorAllocations groups current holdings' invested (cost basis) value by
 // sector, using the static ticker-to-sector mapping. Returned in descending
 // order by invested value.
-func (r *Repository) SectorAllocations(ctx context.Context) ([]SectorAllocation, error) {
-	holdings, err := r.CurrentHoldings(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	byS := make(map[string]decimal.Decimal)
-	for _, h := range holdings {
-		s := sector.ForTicker(h.Ticker)
-		byS[s] = byS[s].Add(h.InvestedGBP)
-	}
-
-	allocations := make([]SectorAllocation, 0, len(byS))
-	for s, v := range byS {
-		allocations = append(allocations, SectorAllocation{Sector: s, InvestedGBP: v.Round(2)})
-	}
-	sort.Slice(allocations, func(i, j int) bool {
-		return allocations[i].InvestedGBP.GreaterThan(allocations[j].InvestedGBP)
-	})
-
-	return allocations, nil
-}
-
 // DividendsSummary sums net dividend income received across all holdings.
 func (r *Repository) DividendsSummary(ctx context.Context) (*DividendsSummary, error) {
 	query := `
@@ -260,6 +234,22 @@ func (r *Repository) DividendsSummary(ctx context.Context) (*DividendsSummary, e
 	}
 
 	return &DividendsSummary{TotalDividendsGBP: total}, nil
+}
+
+// TrailingYearIncome sums dividend and interest income received in the
+// last 365 days. Used as the numerator for the passive-income yield.
+func (r *Repository) TrailingYearIncome(ctx context.Context) (decimal.Decimal, error) {
+	query := `
+		SELECT COALESCE(SUM(net_amount_gbp), 0)
+		FROM portfolio_transactions
+		WHERE entry_type IN ('DIVIDEND', 'INTEREST')
+		AND timestamp >= NOW() - INTERVAL '365 days';`
+
+	var total decimal.Decimal
+	if err := r.db.QueryRowContext(ctx, query).Scan(&total); err != nil {
+		return decimal.Zero, err
+	}
+	return total, nil
 }
 
 // MonthlyDividends returns total dividend income received in each calendar
@@ -306,6 +296,49 @@ func (r *Repository) InvestmentCashFlows(ctx context.Context) ([]CashFlow, error
 		FROM portfolio_transactions
 		WHERE entry_type IN ('BUY', 'SELL', 'DIVIDEND', 'INTEREST')
 		ORDER BY timestamp;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	flows := []CashFlow{}
+	for rows.Next() {
+		var f CashFlow
+		if err := rows.Scan(&f.Date, &f.AmountGBP); err != nil {
+			return nil, err
+		}
+		flows = append(flows, f)
+	}
+	return flows, rows.Err()
+}
+
+// CurrentHoldingsCashFlows returns BUY/SELL/DIVIDEND cash flows (excluding
+// INTEREST, which has no instrument_id and so can't be attributed to a
+// position) for instruments that are still held today, i.e. narrower than
+// InvestmentCashFlows: fully-exited positions are excluded entirely.
+func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context) ([]CashFlow, error) {
+	query := `
+		SELECT pt.timestamp, pt.total_impact_gbp
+		FROM portfolio_transactions pt
+		WHERE pt.entry_type IN ('BUY', 'SELL', 'DIVIDEND')
+		AND pt.instrument_id IN (
+			SELECT instrument_id
+			FROM portfolio_transactions
+			GROUP BY instrument_id
+			HAVING SUM(
+				CASE entry_type
+					WHEN 'BUY' THEN shares
+					WHEN 'SELL' THEN -shares
+					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_DISTRIBUTION' THEN shares
+					WHEN 'ACQUISITION' THEN shares
+					ELSE 0
+				END
+			) > 0
+		)
+		ORDER BY pt.timestamp;`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {

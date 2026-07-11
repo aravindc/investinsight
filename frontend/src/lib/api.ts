@@ -30,7 +30,11 @@ export type InvestedValuePoint = {
 
 export type SectorAllocation = {
   sector: string
+  instrumentCount: number
   investedGbp: string
+  marketValueGbp: string
+  gainGbp: string
+  gainPercent: string
 }
 
 export type MonthlyDividend = {
@@ -46,6 +50,12 @@ export type BackfillResult = {
 
 export type PortfolioIrr = {
   irr: number | null
+  currentHoldingsIrr: number | null
+}
+
+export type PassiveIncome = {
+  yieldPercent: string
+  trailingYearGbp: string
 }
 
 async function fetchJson<T>(path: string): Promise<T> {
@@ -86,6 +96,10 @@ export function fetchMonthlyDividends() {
 
 export function fetchPortfolioIrr() {
   return fetchJson<PortfolioIrr>('/portfolio/irr')
+}
+
+export function fetchPassiveIncome() {
+  return fetchJson<PassiveIncome>('/portfolio/passive-income')
 }
 
 export async function backfillMarketPrices() {

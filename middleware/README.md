@@ -112,13 +112,18 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   see [Deduplication](#deduplication)) and were skipped rather than
   re-inserted; `errors` lists CSV rows that failed to parse.
 - `GET /api/portfolio/sector-allocations` — current holdings' invested
-  (cost basis) value grouped by sector, sorted descending. Sectors come
+  (cost basis) value, current market value, and unrealized gain/loss,
+  grouped by sector and sorted descending by invested value. Sectors come
   from a static ticker→sector mapping (`internal/sector`), not a live data
   source; see [Sector allocation](#sector-allocation).
 - `GET /api/portfolio/irr` — money-weighted rate of return (XIRR) on
-  invested holdings. Returns `{ irr }`, `irr` a decimal fraction (e.g.
-  `0.15` for 15%) or `null` if a rate isn't defined yet (too little
-  activity, or the solver didn't converge). See [Portfolio IRR](#portfolio-irr).
+  invested holdings. Returns `{ irr, currentHoldingsIrr }`, both decimal
+  fractions (e.g. `0.15` for 15%) or `null` if a rate isn't defined yet
+  (too little activity, or the solver didn't converge). See
+  [Portfolio IRR](#portfolio-irr).
+- `GET /api/portfolio/passive-income` — trailing-12-month dividend and
+  interest income as a percentage of current market value. Returns
+  `{ yieldPercent, trailingYearGbp }`.
 - `POST /api/market-prices/backfill` — fetch and store daily closing
   prices, from each instrument's first BUY date to today, for every
   instrument missing history (or top up instruments only missing recent
@@ -190,8 +195,12 @@ daily share count (from `portfolio_transactions`) and a daily closing price
 
 ## Sector allocation
 
-`GET /api/portfolio/sector-allocations` groups current holdings' invested
-(cost basis) value by sector, for the dashboard's sector pie chart.
+`GET /api/portfolio/sector-allocations` groups current holdings by sector,
+for the dashboard's sector pie chart and accompanying table.
+`SummaryService.SectorAllocations` prices every current holding once
+(shared with `HoldingsSummary` via the internal `pricedHoldings` helper),
+then aggregates per sector: invested value, market value, and the
+unrealized gain/loss between them.
 
 - **Static mapping, not a live lookup**: `internal/sector` hand-maps each
   ticker to a sector. There's no sector field anywhere upstream (broker
@@ -209,9 +218,12 @@ daily share count (from `portfolio_transactions`) and a daily closing price
 - **Funds & ETFs** is its own bucket for diversified instruments (index
   funds, investment trusts, bond/commodity ETFs) rather than attributing
   them to one sector.
-- Based on invested (cost basis) value, the same basis as the holdings
-  summary card — not live market value, so it has no Yahoo Finance
-  dependency and is never affected by unpriceable instruments.
+- **Partial pricing**: if any instrument in a sector can't be priced (e.g.
+  an unmapped symbol), that sector's `marketValueGbp`, `gainGbp`, and
+  `gainPercent` are all zero rather than a partial, understated figure —
+  invested value is unaffected. This mirrors how an unpriceable instrument
+  is excluded from the whole-portfolio market value in `HoldingsSummary`,
+  just applied per sector instead of silently.
 
 ## Portfolio IRR
 
@@ -230,9 +242,23 @@ back to bisection if it fails to converge).
   them would conflate uninvested cash with actual investment performance.
 - **No rate defined**: if there are fewer than two cash flows, if every
   flow has the same sign (e.g. only buys and no current market value yet),
-  or if the solver doesn't converge, the endpoint returns `{ irr: null }`
-  rather than an error — this is a normal state for a very new or
+  or if the solver doesn't converge, the endpoint returns `null` for that
+  figure rather than an error — this is a normal state for a very new or
   fully-unpriced portfolio, not a failure.
+- **`currentHoldingsIrr`**: the same calculation restricted to
+  `BUY`/`SELL`/`DIVIDEND` cash flows for instruments still held today
+  (`Repository.CurrentHoldingsCashFlows`) — fully-exited positions are
+  excluded entirely, not just their terminal value. `INTEREST` is excluded
+  from this narrower figure too, since it has no `instrument_id` to
+  restrict by (it's cash interest, not tied to any position).
+
+## Passive income
+
+`GET /api/portfolio/passive-income` reports a trailing-12-month income
+yield: `DIVIDEND` + `INTEREST` income received in the last 365 days
+(`Repository.TrailingYearIncome`), divided by current market value. Zero
+if there's no current market value to divide by. This is backward-looking
+(actual income received), not a forward-looking projected yield.
 
 ## Deduplication
 

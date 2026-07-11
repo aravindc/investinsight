@@ -1,18 +1,20 @@
 import { InvestedValueChart } from '@/components/InvestedValueChart'
 import { IrrCard } from '@/components/IrrCard'
-import { SectorAllocationChart } from '@/components/SectorAllocationChart'
+import { PassiveIncomeCard } from '@/components/PassiveIncomeCard'
+import { SectorAllocationSection } from '@/components/SectorAllocationSection'
 import { TotalProfitCard } from '@/components/TotalProfitCard'
 import { ValueCard } from '@/components/ValueCard'
 
 export function HoldingsPage() {
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-4 gap-6">
         <ValueCard />
         <TotalProfitCard />
         <IrrCard />
+        <PassiveIncomeCard />
       </div>
-      <SectorAllocationChart />
+      <SectorAllocationSection />
       <InvestedValueChart />
     </div>
   )

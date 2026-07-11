@@ -49,16 +49,23 @@ export function IrrCard() {
           </p>
         )}
         {data && data.irr !== null && (
-          <p
-            className={
-              isPositive
-                ? 'mt-3 text-3xl font-semibold text-green-600 dark:text-green-400'
-                : 'text-destructive mt-3 text-3xl font-semibold'
-            }
-          >
-            {isPositive ? '+' : ''}
-            {(data.irr * 100).toFixed(1)}%
-          </p>
+          <>
+            <p
+              className={
+                isPositive
+                  ? 'mt-3 text-3xl font-semibold text-green-600 dark:text-green-400'
+                  : 'text-destructive mt-3 text-3xl font-semibold'
+              }
+            >
+              {isPositive ? '+' : ''}
+              {(data.irr * 100).toFixed(1)}%
+            </p>
+            {data.currentHoldingsIrr !== null && (
+              <p className="text-muted-foreground mt-1 text-sm">
+                {(data.currentHoldingsIrr * 100).toFixed(2)}% current holdings
+              </p>
+            )}
+          </>
         )}
       </CardContent>
     </Card>

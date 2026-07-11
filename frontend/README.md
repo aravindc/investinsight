@@ -34,12 +34,21 @@ React Router (`src/App.tsx`, pages in `src/pages/`):
   - **IRR card** — money-weighted annualized rate of return (XIRR) on
     invested holdings, computed by the middleware from every buy, sell,
     dividend, and interest payment plus current market value as a final
-    terminal inflow. Shows a "not enough activity yet" message instead of
-    a number if a rate isn't defined (e.g. a very new portfolio).
-  - **Holdings by sector pie chart** — current holdings' invested (cost
-    basis) value grouped by sector, using a static ticker-to-sector mapping
-    in the middleware. Capped at 8 slices (the validated categorical
-    palette size); the smallest sectors beyond that fold into "Other".
+    terminal inflow, with a secondary line showing the same calculation
+    restricted to instruments still held today. Shows a "not enough
+    activity yet" message instead of a number if a rate isn't defined
+    (e.g. a very new portfolio).
+  - **Passive income card** — trailing-12-month dividend and interest
+    income as a percentage of current market value, with the underlying
+    annual GBP total shown underneath.
+  - **Sector allocation section** — a pie chart (current holdings' invested
+    value grouped by sector, using a static ticker-to-sector mapping in the
+    middleware; capped at 8 slices, the validated categorical palette size,
+    with the smallest sectors beyond that folding into "Other") alongside a
+    table of the same sectors with invested value, current market value,
+    unrealized gain/loss, and % of portfolio. A sector shows "Unpriced" in
+    the gain/loss column instead of a (misleadingly partial) figure if any
+    of its instruments couldn't be priced.
   - **Cumulative invested vs. market value chart** — two lines: running
     total of net capital invested, and historical market value (shares
     held × closing price, both from the middleware), with period buttons
@@ -79,7 +88,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects ten endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects eleven endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -95,10 +104,15 @@ The dashboard expects ten endpoints from the middleware (`src/lib/api.ts`):
   without a price for that specific day is simply omitted from that day's
   sum, not from the whole series.
 - `GET /api/portfolio/sector-allocations` — current holdings' invested
-  value (GBP) grouped by sector, sorted descending.
+  value, market value, and unrealized gain/loss (GBP) grouped by sector,
+  sorted descending by invested value.
 - `GET /api/portfolio/irr` — money-weighted rate of return (XIRR) on
-  invested holdings. Returns `{ irr }`, a decimal fraction or `null` if
-  not enough activity exists yet for a rate to be defined.
+  invested holdings. Returns `{ irr, currentHoldingsIrr }`, both decimal
+  fractions or `null` if not enough activity exists yet for a rate to be
+  defined.
+- `GET /api/portfolio/passive-income` — trailing-12-month dividend and
+  interest income as a percentage of current market value. Returns
+  `{ yieldPercent, trailingYearGbp }`.
 - `GET /api/portfolio/monthly-dividends` — total dividend income (GBP) per
   calendar month across the full ledger history, ordered chronologically.
   Powers both the dividends-received (cumulative) and dividend-growth

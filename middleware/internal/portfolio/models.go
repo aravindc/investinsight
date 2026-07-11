@@ -36,11 +36,18 @@ type DividendsSummary struct {
 	TotalDividendsGBP decimal.Decimal `json:"totalDividendsGbp"`
 }
 
-// SectorAllocation is one sector's share of current holdings, by invested
-// (cost basis) value.
+// SectorAllocation is one sector's share of current holdings: invested
+// (cost basis) value, current market value, the unrealized gain/loss
+// between them, and how many distinct instruments it contains. GainGBP and
+// GainPercent are zero if MarketValueGBP couldn't be priced for every
+// instrument in the sector (see SummaryService.SectorAllocations).
 type SectorAllocation struct {
-	Sector      string          `json:"sector"`
-	InvestedGBP decimal.Decimal `json:"investedGbp"`
+	Sector          string          `json:"sector"`
+	InstrumentCount int             `json:"instrumentCount"`
+	InvestedGBP     decimal.Decimal `json:"investedGbp"`
+	MarketValueGBP  decimal.Decimal `json:"marketValueGbp"`
+	GainGBP         decimal.Decimal `json:"gainGbp"`
+	GainPercent     decimal.Decimal `json:"gainPercent"`
 }
 
 // MonthlyDividend is total dividend income received in one calendar month.
@@ -60,7 +67,19 @@ type CashFlow struct {
 
 // PortfolioIRR reports the money-weighted rate of return (XIRR) on
 // invested holdings: BUY/SELL/DIVIDEND/INTEREST cash flows plus current
-// market value as a final terminal inflow.
+// market value as a final terminal inflow. CurrentHoldingsIRR is the same
+// calculation restricted to cash flows for instruments still held today
+// (excluding fully-exited positions) — nil if not enough activity exists
+// for that narrower calculation.
 type PortfolioIRR struct {
-	IRR float64 `json:"irr"`
+	IRR                float64  `json:"irr"`
+	CurrentHoldingsIRR *float64 `json:"currentHoldingsIrr"`
+}
+
+// PassiveIncome reports a trailing-12-month income yield: dividend and
+// interest income received in the last 365 days, as a percentage of
+// current market value.
+type PassiveIncome struct {
+	YieldPercent    decimal.Decimal `json:"yieldPercent"`
+	TrailingYearGBP decimal.Decimal `json:"trailingYearGbp"`
 }

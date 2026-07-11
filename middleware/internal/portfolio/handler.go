@@ -28,6 +28,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
 	router.GET("/portfolio/irr", h.portfolioIRR)
+	router.GET("/portfolio/passive-income", h.passiveIncome)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -91,13 +92,23 @@ func (h *Handler) marketValueSeries(c *gin.Context) {
 }
 
 func (h *Handler) sectorAllocations(c *gin.Context) {
-	allocations, err := h.repo.SectorAllocations(c.Request.Context())
+	allocations, err := h.summary.SectorAllocations(c.Request.Context())
 	if err != nil {
 		h.log.Error("failed to compute sector allocations", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load sector allocations"})
 		return
 	}
 	c.JSON(http.StatusOK, allocations)
+}
+
+func (h *Handler) passiveIncome(c *gin.Context) {
+	income, err := h.summary.PassiveIncome(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to compute passive income", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load passive income"})
+		return
+	}
+	c.JSON(http.StatusOK, income)
 }
 
 func (h *Handler) portfolioIRR(c *gin.Context) {
