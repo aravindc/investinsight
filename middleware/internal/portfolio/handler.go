@@ -21,6 +21,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/transactions", h.listTransactions)
 	router.GET("/portfolio/holdings-summary", h.holdingsSummary)
 	router.GET("/portfolio/dividends-summary", h.dividendsSummary)
+	router.GET("/portfolio/monthly-dividends", h.monthlyDividends)
 	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
@@ -54,6 +55,16 @@ func (h *Handler) dividendsSummary(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, summary)
+}
+
+func (h *Handler) monthlyDividends(c *gin.Context) {
+	months, err := h.repo.MonthlyDividends(c.Request.Context())
+	if err != nil {
+		h.log.Error("failed to compute monthly dividends", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load monthly dividends"})
+		return
+	}
+	c.JSON(http.StatusOK, months)
 }
 
 func (h *Handler) investedValueSeries(c *gin.Context) {

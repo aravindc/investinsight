@@ -42,3 +42,10 @@ type SectorAllocation struct {
 	Sector      string          `json:"sector"`
 	InvestedGBP decimal.Decimal `json:"investedGbp"`
 }
+
+// MonthlyDividend is total dividend income received in one calendar month.
+type MonthlyDividend struct {
+	Year     int             `json:"year"`
+	Month    int             `json:"month"` // 1-12
+	TotalGBP decimal.Decimal `json:"totalGbp"`
+}

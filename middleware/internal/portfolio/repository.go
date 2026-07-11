@@ -261,3 +261,35 @@ func (r *Repository) DividendsSummary(ctx context.Context) (*DividendsSummary, e
 
 	return &DividendsSummary{TotalDividendsGBP: total}, nil
 }
+
+// MonthlyDividends returns total dividend income received in each calendar
+// month that had any, across the full ledger history, ordered
+// chronologically. Used to derive both the cumulative dividends-received
+// series and the year-over-year dividend growth comparison.
+func (r *Repository) MonthlyDividends(ctx context.Context) ([]MonthlyDividend, error) {
+	query := `
+		SELECT
+			EXTRACT(YEAR FROM timestamp)::int AS year,
+			EXTRACT(MONTH FROM timestamp)::int AS month,
+			SUM(net_amount_gbp) AS total
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND'
+		GROUP BY year, month
+		ORDER BY year, month;`
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	months := []MonthlyDividend{}
+	for rows.Next() {
+		var m MonthlyDividend
+		if err := rows.Scan(&m.Year, &m.Month, &m.TotalGBP); err != nil {
+			return nil, err
+		}
+		months = append(months, m)
+	}
+	return months, rows.Err()
+}

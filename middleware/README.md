@@ -86,6 +86,10 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   the market value total and logged, rather than failing the request.
 - `GET /api/portfolio/dividends-summary` — total dividend income received
   to date (sum of `net_amount_gbp` for `DIVIDEND` entries).
+- `GET /api/portfolio/monthly-dividends` — total dividend income (GBP) per
+  calendar month, across the full ledger history, ordered chronologically.
+  Used to derive both the cumulative dividends-received chart and the
+  year-over-year dividend growth comparison client-side.
 - `GET /api/portfolio/invested-value-series` — cumulative net capital
   invested (BUY minus SELL cash flow) as of each day with trading activity,
   across every instrument ever traded (including fully exited positions).
