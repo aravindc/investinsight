@@ -1,9 +1,14 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import { Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
+import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { fetchSectorAllocations } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
+
+const INNER_RADIUS = '55%'
+const OUTER_RADIUS = '80%'
+// Guide circle sits just outside the ring, echoing the reference design.
+const GUIDE_RADIUS = '84%'
 
 // Fixed hue assignment by sector identity, matching the backend's declared
 // sector order — never reassigned based on sort order or filtering, so a
@@ -85,7 +90,7 @@ export function SectorAllocationChart() {
       <CardHeader>
         <CardTitle>Holdings by sector</CardTitle>
       </CardHeader>
-      <CardContent className="h-80">
+      <CardContent className="h-40">
         {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
         {error && (
           <p className="text-destructive text-sm">Failed to load sector allocations.</p>
@@ -97,22 +102,38 @@ export function SectorAllocationChart() {
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
+                data={[{ sector: 'guide', investedGbp: 1 }]}
+                dataKey="investedGbp"
+                innerRadius={GUIDE_RADIUS}
+                outerRadius={GUIDE_RADIUS}
+                stroke="var(--muted-foreground)"
+                strokeDasharray="4 4"
+                strokeOpacity={0.4}
+                fill="none"
+                isAnimationActive={false}
+                legendType="none"
+                tooltipType="none"
+              />
+              <Pie
                 data={slices}
                 dataKey="investedGbp"
                 nameKey="sector"
-                innerRadius="55%"
-                outerRadius="80%"
-                paddingAngle={2}
-                label={({ sector, investedGbp }) =>
-                  `${sector} (${((investedGbp / total) * 100).toFixed(0)}%)`
-                }
+                innerRadius={INNER_RADIUS}
+                outerRadius={OUTER_RADIUS}
+                cornerRadius={8}
+                paddingAngle={3}
+                stroke="none"
               >
                 {slices.map((s) => (
                   <Cell key={s.sector} fill={colorForSector(s.sector)} />
                 ))}
               </Pie>
-              <Tooltip formatter={(value) => formatGbp(String(value))} />
-              <Legend />
+              <Tooltip
+                formatter={(value, _name, item) => [
+                  formatGbp(String(value)),
+                  `${item.payload.sector} (${((Number(value) / total) * 100).toFixed(0)}%)`,
+                ]}
+              />
             </PieChart>
           </ResponsiveContainer>
         )}
