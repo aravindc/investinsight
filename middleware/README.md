@@ -24,6 +24,9 @@ Gin-based API server that serves the portfolio ledger to the frontend.
 - `internal/migrate` — embeds `migrations/*.sql` and applies them with goose.
 - `internal/portfolio` — repository, handlers, and JSON models for the
   portfolio ledger endpoints.
+- `internal/ingest` — CSV parsing, broker-action normalization, and the
+  ledger ingestion engine (ported from `csv_loader`) used by the CSV upload
+  endpoint.
 
 ## Migrations
 
@@ -72,6 +75,22 @@ reachable per `.env`. CORS is currently locked to `http://localhost:5173`
   feed is wired in.
 - `GET /api/portfolio/dividends-summary` — total dividend income received
   to date (sum of `net_amount_gbp` for `DIVIDEND` entries).
+- `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`,
+  field `file`; optional `hasHeader` form field, defaults to `true`). Parses
+  and ingests the file the same way as `csv_loader`, then normalizes new
+  rows into `portfolio_transactions`. Returns
+  `{ inserted, duplicate, errors }`: `duplicate` counts rows that already
+  exist (matched on `action` + `transaction_time` + `isin` + `internal_id`,
+  see [Deduplication](#deduplication)) and were skipped rather than
+  re-inserted; `errors` lists CSV rows that failed to parse.
+
+## Deduplication
+
+`source_transactions` has a unique index on
+`(action, transaction_time, isin, internal_id)`. Re-uploading a CSV that
+overlaps with previously loaded data — including through `csv_loader`, since
+both paths write to the same table — inserts only the new rows; rows that
+already exist are skipped and counted, not re-inserted or errored.
 
 ## Build
 

@@ -11,6 +11,10 @@ Portfolio dashboard for InvestInsight, built with React + Vite + TypeScript.
 
 ## Dashboard
 
+- **Import transactions card** — upload a broker CSV export. Reports how
+  many transactions were newly imported vs. skipped as duplicates, plus any
+  rows that failed to parse. Successful uploads refresh the holdings,
+  dividends, and transactions data automatically.
 - **Current holdings card** — invested (cost basis) value and market value
   of instruments currently held. Market value is `£0` until the middleware
   has a live price feed.
@@ -32,7 +36,7 @@ or update the proxy target if it runs on a different port.
 
 ## API expectations
 
-The dashboard expects three endpoints from the middleware (`src/lib/api.ts`):
+The dashboard expects four endpoints from the middleware (`src/lib/api.ts`):
 
 - `GET /api/transactions` — list of `portfolio_transactions`, joined with
   instrument name.
@@ -40,6 +44,8 @@ The dashboard expects three endpoints from the middleware (`src/lib/api.ts`):
   (GBP) of instruments currently held.
 - `GET /api/portfolio/dividends-summary` — total dividend income received
   to date (GBP).
+- `POST /api/csv-upload` — upload a broker CSV export (`multipart/form-data`);
+  returns `{ inserted, duplicate, errors }`.
 
 Adjust `src/lib/api.ts` and the response types as the middleware's actual API
 shape solidifies.

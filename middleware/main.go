@@ -11,6 +11,7 @@ import (
 
 	"investinsight/middleware/internal/config"
 	"investinsight/middleware/internal/db"
+	"investinsight/middleware/internal/ingest"
 	appLogger "investinsight/middleware/internal/logger"
 	"investinsight/middleware/internal/migrate"
 	"investinsight/middleware/internal/portfolio"
@@ -55,6 +56,10 @@ func main() {
 	portfolioRepo := portfolio.NewRepository(database)
 	portfolioHandler := portfolio.NewHandler(portfolioRepo, logger)
 	portfolioHandler.RegisterRoutes(api)
+
+	ingestEngine := ingest.NewEngine(database)
+	ingestHandler := ingest.NewHandler(ingestEngine, logger)
+	ingestHandler.RegisterRoutes(api)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

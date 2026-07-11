@@ -17,6 +17,12 @@ export type DividendsSummary = {
   totalDividendsGbp: string
 }
 
+export type CsvUploadResult = {
+  inserted: number
+  duplicate: number
+  errors: string[]
+}
+
 async function fetchJson<T>(path: string): Promise<T> {
   const res = await fetch(`/api${path}`)
   if (!res.ok) {
@@ -35,4 +41,19 @@ export function fetchHoldingsSummary() {
 
 export function fetchDividendsSummary() {
   return fetchJson<DividendsSummary>('/portfolio/dividends-summary')
+}
+
+export async function uploadCsv(file: File, hasHeader: boolean) {
+  const formData = new FormData()
+  formData.append('file', file)
+  formData.append('hasHeader', String(hasHeader))
+
+  const res = await fetch('/api/csv-upload', {
+    method: 'POST',
+    body: formData,
+  })
+  if (!res.ok) {
+    throw new Error(`CSV upload failed: ${res.status}`)
+  }
+  return res.json() as Promise<CsvUploadResult>
 }

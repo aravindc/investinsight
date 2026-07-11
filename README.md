@@ -76,7 +76,15 @@ before serving. Serves the ledger to the frontend at `http://localhost:3000`.
 See [`middleware/README.md`](middleware/README.md) for endpoint and migration
 details.
 
-### 3. Configure the CSV loader
+### 3. Load a CSV file
+
+Two ways to load a broker CSV export — either works, and both write to the
+same tables with the same duplicate protection:
+
+**Via the dashboard** (once the frontend is running, see below): use the
+"Import transactions" card to upload a file directly.
+
+**Via the CLI:**
 
 Create a `.env` file inside `csv_loader/` with:
 
@@ -89,8 +97,6 @@ DB_NAME=investinsight_db
 DB_SSLMODE=disable
 ```
 
-### 4. Load a CSV file
-
 ```sh
 cd csv_loader
 go build -o csv_loader .
@@ -99,7 +105,7 @@ go build -o csv_loader .
 
 Use `-h=false` if the CSV file has no header row.
 
-### 5. Run the frontend
+### 4. Run the frontend
 
 ```sh
 cd frontend
@@ -127,3 +133,9 @@ Currency conversion fee, Currency (Currency conversion fee)
 - Prices quoted in `GBX` (pence) are automatically converted to `GBP`.
 - `.env` files and other local configuration contain credentials and should
   never be committed.
+- `source_transactions` has a unique index on
+  `(action, transaction_time, isin, internal_id)`. Both the dashboard upload
+  and the `csv_loader` CLI write to the same table, so re-loading a file
+  (via either path) skips rows already present rather than duplicating them.
+  The dashboard reports a duplicate count; the CLI logs a per-row error and
+  continues.
