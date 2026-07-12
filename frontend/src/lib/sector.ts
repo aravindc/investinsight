@@ -18,8 +18,10 @@ import {
 
 // Fixed hue assignment by sector identity, matching the backend's declared
 // sector order — never reassigned based on sort order or filtering, so a
-// given sector keeps the same color across renders.
-const SECTOR_ORDER = [
+// given sector keeps the same color across renders. Also the canonical
+// list of valid sectors for the Admin sector-editor dropdown — must stay
+// in sync with middleware/internal/sector.All().
+export const SECTOR_ORDER = [
   'Technology',
   'Financials',
   'Healthcare',
