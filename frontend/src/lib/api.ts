@@ -81,6 +81,26 @@ export type AssetCategory = {
   instruments: AssetOption[]
 }
 
+export type HoldingRow = {
+  instrumentId: string
+  ticker: string
+  name: string
+  shares: string
+  costBasisGbp: string
+  costBasisPerShareGbp: string
+  currentValueGbp: string
+  currentValuePerShareGbp: string
+  priced: boolean
+  dividendsReceivedGbp: string
+  dividendsReceivedPerShareGbp: string
+  dividendYieldPercent: string | null
+  dividendGrowthPercent: string | null
+  totalProfitGbp: string | null
+  totalProfitPercent: string | null
+  irrPercent: string | null
+  portfolioSharePercent: string | null
+}
+
 async function fetchJson<T>(path: string, params?: Record<string, string | string[]>): Promise<T> {
   const qs = new URLSearchParams()
   for (const [key, value] of Object.entries(params ?? {})) {
@@ -158,6 +178,10 @@ export function fetchPassiveIncome(scopeParam: string, instrumentIds?: string[])
 
 export function fetchAssetCategories(scopeParam: string) {
   return fetchJson<AssetCategory[]>('/portfolio/asset-categories', { scope: scopeParam })
+}
+
+export function fetchHoldingsTable(scopeParam: string) {
+  return fetchJson<HoldingRow[]>('/portfolio/holdings-table', { scope: scopeParam })
 }
 
 export async function backfillMarketPrices() {

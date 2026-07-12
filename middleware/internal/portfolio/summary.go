@@ -202,6 +202,141 @@ func (s *SummaryService) AssetCategories(ctx context.Context, scope Scope) ([]As
 	return result, nil
 }
 
+// HoldingsTable computes one HoldingRow per currently-held instrument, with
+// cost basis, current value, dividends, dividend yield, 5-year dividend
+// growth, total profit, per-instrument IRR, and share of portfolio.
+func (s *SummaryService) HoldingsTable(ctx context.Context, scope Scope) ([]HoldingRow, error) {
+	holdings, err := s.pricedHoldings(ctx, scope, NoFilter)
+	if err != nil {
+		return nil, err
+	}
+
+	dividends, err := s.repo.InstrumentDividends(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	trailingDividends, err := s.repo.InstrumentTrailingYearDividends(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	yearlyDividends, err := s.repo.InstrumentYearlyDividends(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+	cashFlows, err := s.repo.InstrumentCashFlows(ctx, scope)
+	if err != nil {
+		return nil, err
+	}
+
+	dividendGrowth := computeDividendGrowth(yearlyDividends)
+	flowsByInstrument := make(map[uuid.UUID][]CashFlow)
+	for _, f := range cashFlows {
+		flowsByInstrument[f.InstrumentID] = append(flowsByInstrument[f.InstrumentID], CashFlow{Date: f.Date, AmountGBP: f.AmountGBP})
+	}
+
+	totalMarketValue := decimal.Zero
+	for _, h := range holdings {
+		if h.Priced {
+			totalMarketValue = totalMarketValue.Add(h.MarketValueGBP)
+		}
+	}
+
+	rows := make([]HoldingRow, 0, len(holdings))
+	for _, h := range holdings {
+		row := HoldingRow{
+			InstrumentID:         h.InstrumentID,
+			Ticker:               h.Ticker,
+			Name:                 h.Name,
+			Shares:               h.NetShares,
+			CostBasisGBP:         h.InvestedGBP.Round(2),
+			Priced:               h.Priced,
+			DividendsReceivedGBP: dividends[h.InstrumentID].Round(2),
+		}
+		if h.NetShares.IsPositive() {
+			row.CostBasisPerShareGBP = h.InvestedGBP.Div(h.NetShares).Round(4)
+			row.DividendsReceivedPerShareGBP = dividends[h.InstrumentID].Div(h.NetShares).Round(4)
+		}
+		if growth, ok := dividendGrowth[h.InstrumentID]; ok {
+			row.DividendGrowthPercent = &growth
+		}
+
+		if h.Priced {
+			row.CurrentValueGBP = h.MarketValueGBP
+			if h.NetShares.IsPositive() {
+				row.CurrentValuePerShareGBP = h.MarketValueGBP.Div(h.NetShares).Round(4)
+			}
+			if trailing, ok := trailingDividends[h.InstrumentID]; ok && h.MarketValueGBP.IsPositive() {
+				yield := trailing.Div(h.MarketValueGBP).Mul(decimal.NewFromInt(100)).Round(2)
+				row.DividendYieldPercent = &yield
+			}
+
+			profit := h.MarketValueGBP.Sub(h.InvestedGBP).Round(2)
+			row.TotalProfitGBP = &profit
+			if h.InvestedGBP.IsPositive() {
+				profitPercent := profit.Div(h.InvestedGBP).Mul(decimal.NewFromInt(100)).Round(2)
+				row.TotalProfitPercent = &profitPercent
+			}
+
+			if totalMarketValue.IsPositive() {
+				share := h.MarketValueGBP.Div(totalMarketValue).Mul(decimal.NewFromInt(100)).Round(2)
+				row.PortfolioSharePercent = &share
+			}
+
+			if rate, err := computeIRR(flowsByInstrument[h.InstrumentID], h.MarketValueGBP); err == nil {
+				row.IRRPercent = decimalPtr(decimal.NewFromFloat(rate).Mul(decimal.NewFromInt(100)).Round(2))
+			}
+		}
+
+		rows = append(rows, row)
+	}
+
+	sort.Slice(rows, func(i, j int) bool {
+		return rows[i].CurrentValueGBP.GreaterThan(rows[j].CurrentValueGBP)
+	})
+
+	return rows, nil
+}
+
+// computeDividendGrowth compares total dividend income between the earliest
+// and latest calendar years (capped at the last 5 years) within each
+// instrument's own dividend history. Instruments with fewer than 2 distinct
+// years of dividend history are omitted from the result.
+func computeDividendGrowth(yearly []InstrumentYearlyDividend) map[uuid.UUID]decimal.Decimal {
+	byInstrument := make(map[uuid.UUID][]InstrumentYearlyDividend)
+	for _, y := range yearly {
+		byInstrument[y.InstrumentID] = append(byInstrument[y.InstrumentID], y)
+	}
+
+	result := make(map[uuid.UUID]decimal.Decimal)
+	for id, years := range byInstrument {
+		if len(years) < 2 {
+			continue
+		}
+		sort.Slice(years, func(i, j int) bool { return years[i].Year < years[j].Year })
+
+		latest := years[len(years)-1]
+		windowStart := latest.Year - 4 // up to 5 years inclusive
+		earliest := years[0]
+		for _, y := range years {
+			if y.Year >= windowStart {
+				earliest = y
+				break
+			}
+		}
+		if earliest.Year == latest.Year || !earliest.TotalGBP.IsPositive() {
+			continue
+		}
+
+		growth := latest.TotalGBP.Sub(earliest.TotalGBP).Div(earliest.TotalGBP).Mul(decimal.NewFromInt(100)).Round(2)
+		result[id] = growth
+	}
+	return result
+}
+
+func decimalPtr(d decimal.Decimal) *decimal.Decimal {
+	return &d
+}
+
 // PassiveIncome reports a trailing-12-month income yield: dividend and
 // interest income received in the last 365 days, as a percentage of
 // current market value. Zero if there's no current market value to divide

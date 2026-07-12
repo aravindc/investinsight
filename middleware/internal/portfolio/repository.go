@@ -364,6 +364,158 @@ func (r *Repository) InvestmentCashFlows(ctx context.Context, scope Scope, filte
 	return flows, rows.Err()
 }
 
+// InstrumentDividends sums dividend income received per instrument, across
+// all currently-held instruments matching scope. Instruments with no
+// dividend history are simply absent from the returned map.
+func (r *Repository) InstrumentDividends(ctx context.Context, scope Scope) (map[uuid.UUID]decimal.Decimal, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND %s
+		GROUP BY instrument_id;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	totals := make(map[uuid.UUID]decimal.Decimal)
+	for rows.Next() {
+		var id uuid.UUID
+		var total decimal.Decimal
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		totals[id] = total
+	}
+	return totals, rows.Err()
+}
+
+// InstrumentTrailingYearDividends sums dividend income received in the last
+// 365 days, per instrument. Used as the numerator for per-holding dividend
+// yield.
+func (r *Repository) InstrumentTrailingYearDividends(ctx context.Context, scope Scope) (map[uuid.UUID]decimal.Decimal, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND timestamp >= NOW() - INTERVAL '365 days' AND %s
+		GROUP BY instrument_id;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	totals := make(map[uuid.UUID]decimal.Decimal)
+	for rows.Next() {
+		var id uuid.UUID
+		var total decimal.Decimal
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		totals[id] = total
+	}
+	return totals, rows.Err()
+}
+
+// InstrumentYearlyDividend is one instrument's total dividend income
+// received in one calendar year.
+type InstrumentYearlyDividend struct {
+	InstrumentID uuid.UUID
+	Year         int
+	TotalGBP     decimal.Decimal
+}
+
+// InstrumentYearlyDividends returns total dividend income per instrument
+// per calendar year, across the full ledger history, for computing
+// per-holding dividend growth.
+func (r *Repository) InstrumentYearlyDividends(ctx context.Context, scope Scope) ([]InstrumentYearlyDividend, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, EXTRACT(YEAR FROM timestamp)::int AS year, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND %s
+		GROUP BY instrument_id, year
+		ORDER BY instrument_id, year;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var yearly []InstrumentYearlyDividend
+	for rows.Next() {
+		var y InstrumentYearlyDividend
+		if err := rows.Scan(&y.InstrumentID, &y.Year, &y.TotalGBP); err != nil {
+			return nil, err
+		}
+		yearly = append(yearly, y)
+	}
+	return yearly, rows.Err()
+}
+
+// InstrumentCashFlow is one dated external cash flow attributed to a single
+// instrument (see CurrentHoldingsCashFlows for the flat, non-attributed
+// version).
+type InstrumentCashFlow struct {
+	InstrumentID uuid.UUID
+	Date         time.Time
+	AmountGBP    decimal.Decimal
+}
+
+// InstrumentCashFlows returns BUY/SELL/DIVIDEND cash flows (excluding
+// INTEREST, which has no instrument_id), attributed per instrument, for
+// instruments still held today — the per-holding equivalent of
+// CurrentHoldingsCashFlows, used to compute each holding's own IRR.
+func (r *Repository) InstrumentCashFlows(ctx context.Context, scope Scope) ([]InstrumentCashFlow, error) {
+	outerFilter, outerArg := buildScopeFilter(scope, "pt", 1)
+	innerFilter, _ := buildScopeFilter(scope, "", 1)
+
+	query := fmt.Sprintf(`
+		SELECT pt.instrument_id, pt.timestamp, pt.total_impact_gbp
+		FROM portfolio_transactions pt
+		WHERE pt.entry_type IN ('BUY', 'SELL', 'DIVIDEND')
+		AND %s
+		AND pt.instrument_id IN (
+			SELECT instrument_id
+			FROM portfolio_transactions
+			WHERE %s
+			GROUP BY instrument_id
+			HAVING SUM(
+				CASE entry_type
+					WHEN 'BUY' THEN shares
+					WHEN 'SELL' THEN -shares
+					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_DISTRIBUTION' THEN shares
+					WHEN 'ACQUISITION' THEN shares
+					ELSE 0
+				END
+			) > 0
+		)
+		ORDER BY pt.instrument_id, pt.timestamp;`, outerFilter, innerFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, outerArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flows []InstrumentCashFlow
+	for rows.Next() {
+		var f InstrumentCashFlow
+		if err := rows.Scan(&f.InstrumentID, &f.Date, &f.AmountGBP); err != nil {
+			return nil, err
+		}
+		flows = append(flows, f)
+	}
+	return flows, rows.Err()
+}
+
 // CurrentHoldingsCashFlows returns BUY/SELL/DIVIDEND cash flows (excluding
 // INTEREST, which has no instrument_id and so can't be attributed to a
 // position) for instruments that are still held today, i.e. narrower than
