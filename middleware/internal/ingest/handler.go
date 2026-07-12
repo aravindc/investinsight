@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +34,12 @@ func (h *Handler) uploadCSV(c *gin.Context) {
 		return
 	}
 
+	accountID, err := uuid.Parse(c.PostForm("accountId"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "missing or invalid \"accountId\" form field"})
+		return
+	}
+
 	hasHeader := c.DefaultPostForm("hasHeader", "true") != "false"
 
 	file, err := fileHeader.Open()
@@ -43,7 +50,7 @@ func (h *Handler) uploadCSV(c *gin.Context) {
 	}
 	defer file.Close()
 
-	result, err := h.engine.LoadCSV(c.Request.Context(), file, hasHeader)
+	result, err := h.engine.LoadCSV(c.Request.Context(), file, hasHeader, accountID)
 	if err != nil {
 		h.log.Error("failed to load CSV", zap.Error(err), zap.String("filename", fileHeader.Filename))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load CSV"})

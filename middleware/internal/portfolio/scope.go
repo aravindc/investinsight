@@ -1,0 +1,57 @@
+package portfolio
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+
+	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
+)
+
+// Scope restricts portfolio queries to either a single account or every
+// account within a household (the "All accounts" aggregate view).
+type Scope struct {
+	AccountID     uuid.UUID
+	HouseholdID   uuid.UUID
+	HouseholdWide bool
+}
+
+// parseScope reads the required "scope" query param: either an account UUID,
+// or "household:<uuid>" for a household-wide aggregate.
+func parseScope(c *gin.Context) (Scope, error) {
+	raw := c.Query("scope")
+	if raw == "" {
+		return Scope{}, errors.New("missing required scope parameter")
+	}
+
+	if id, ok := strings.CutPrefix(raw, "household:"); ok {
+		hid, err := uuid.Parse(id)
+		if err != nil {
+			return Scope{}, fmt.Errorf("invalid household id: %w", err)
+		}
+		return Scope{HouseholdID: hid, HouseholdWide: true}, nil
+	}
+
+	aid, err := uuid.Parse(raw)
+	if err != nil {
+		return Scope{}, fmt.Errorf("invalid account id: %w", err)
+	}
+	return Scope{AccountID: aid}, nil
+}
+
+// buildScopeFilter returns a SQL condition scoping rows of alias to scope
+// ("<alias>.account_id = $N" for a single account, or an IN-subquery over
+// every account in the household for the aggregate view), plus the single
+// arg to bind at argPos. Pass an empty alias for an unqualified "account_id"
+// column reference (e.g. inside a subquery with its own FROM).
+func buildScopeFilter(scope Scope, alias string, argPos int) (string, any) {
+	col := "account_id"
+	if alias != "" {
+		col = alias + "." + col
+	}
+	if scope.HouseholdWide {
+		return fmt.Sprintf("%s IN (SELECT id FROM accounts WHERE household_id = $%d)", col, argPos), scope.HouseholdID
+	}
+	return fmt.Sprintf("%s = $%d", col, argPos), scope.AccountID
+}

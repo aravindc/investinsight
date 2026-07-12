@@ -27,12 +27,12 @@ func NewEngine(db *sql.DB) *Engine {
 	return &Engine{db: db}
 }
 
-// LoadCSV parses r and ingests it inside a single transaction: new rows are
-// inserted into source_transactions and normalized into
-// portfolio_transactions; rows matching an existing
-// (action, transaction_time, isin, internal_id) are counted as duplicates
-// and skipped rather than re-inserted.
-func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool) (*Result, error) {
+// LoadCSV parses r and ingests it, scoped to accountID, inside a single
+// transaction: new rows are inserted into source_transactions and normalized
+// into portfolio_transactions; rows matching an existing
+// (account_id, action, transaction_time, isin, internal_id) are counted as
+// duplicates and skipped rather than re-inserted.
+func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool, accountID uuid.UUID) (*Result, error) {
 	parsedRows, parseErrs := ParseCSV(r, hasHeader)
 
 	result := &Result{Errors: parseErrs}
@@ -48,14 +48,14 @@ func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool) (*Res
 
 	insertQuery := `
 		INSERT INTO source_transactions (
-			action, transaction_time, isin, ticker, name, notes, internal_id,
+			account_id, action, transaction_time, isin, ticker, name, notes, internal_id,
 			no_of_shares, price_per_share, currency_price_per_share,
 			exchange_rate, result, currency_result, total, currency_total,
 			withholding_tax, currency_withholding_tax,
 			stamp_duty_reserve_tax, currency_stamp_duty_reserve_tax,
 			currency_conversion_fee, currency_conversion_fee_currency
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-		ON CONFLICT (action, transaction_time, isin, internal_id) DO NOTHING
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+		ON CONFLICT (account_id, action, transaction_time, isin, internal_id) DO NOTHING
 		RETURNING id;
 	`
 	stmt, err := tx.PrepareContext(ctx, insertQuery)
@@ -68,6 +68,7 @@ func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool) (*Res
 	for _, row := range parsedRows {
 		var insertedID uuid.UUID
 		err := stmt.QueryRowContext(ctx,
+			accountID,
 			row.Action, row.TransactionTime, row.ISIN, row.Ticker, row.Name, row.Notes, row.InternalID,
 			row.NoOfShares, row.PricePerShare, row.CurrencyPricePerShare,
 			row.ExchangeRate, row.Result, row.CurrencyResult, row.Total, row.CurrencyTotal,
@@ -93,7 +94,7 @@ func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool) (*Res
 	}
 
 	if len(freshInsertedIDs) > 0 {
-		if err := e.normalizeWithinTx(ctx, tx, freshInsertedIDs); err != nil {
+		if err := e.normalizeWithinTx(ctx, tx, freshInsertedIDs, accountID); err != nil {
 			return nil, fmt.Errorf("normalizing ledger entries: %w", err)
 		}
 	}
@@ -108,7 +109,7 @@ func (e *Engine) LoadCSV(ctx context.Context, r io.Reader, hasHeader bool) (*Res
 // normalizeWithinTx mirrors the standalone csv_loader's ingestion engine:
 // fetch the freshly inserted raw rows, resolve/create their instruments,
 // and insert normalized ledger entries into portfolio_transactions.
-func (e *Engine) normalizeWithinTx(ctx context.Context, tx *sql.Tx, targetIDs []uuid.UUID) error {
+func (e *Engine) normalizeWithinTx(ctx context.Context, tx *sql.Tx, targetIDs []uuid.UUID, accountID uuid.UUID) error {
 	selectQuery := `
 		SELECT
 			id, action, transaction_time, isin, ticker, name,
@@ -146,8 +147,8 @@ func (e *Engine) normalizeWithinTx(ctx context.Context, tx *sql.Tx, targetIDs []
 		INSERT INTO portfolio_transactions (
 			source_transaction_id, instrument_id, entry_type, timestamp,
 			shares, price_per_share_local, fx_rate_to_gbp,
-			net_amount_gbp, fees_gbp, taxes_gbp, total_impact_gbp
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);`
+			net_amount_gbp, fees_gbp, taxes_gbp, total_impact_gbp, account_id
+		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);`
 
 	insertStmt, err := tx.PrepareContext(ctx, insertQuery)
 	if err != nil {
@@ -180,6 +181,7 @@ func (e *Engine) normalizeWithinTx(ctx context.Context, tx *sql.Tx, targetIDs []
 			normalized.SourceID, normalized.InstrumentID, normalized.EntryType, normalized.Timestamp,
 			normalized.Shares, normalized.PricePerShareLocal, normalized.FXRateToGBP,
 			normalized.NetAmountGBP, normalized.FeesGBP, normalized.TaxesGBP, normalized.TotalImpactGBP,
+			accountID,
 		)
 		if err != nil {
 			return fmt.Errorf("inserting ledger entry: %w", err)

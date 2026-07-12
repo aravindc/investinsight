@@ -48,8 +48,8 @@ type pricedHolding struct {
 // instrument (e.g. unmapped symbol, Yahoo error), it's returned with
 // Priced=false rather than failing the whole request, and the failure is
 // logged.
-func (s *SummaryService) pricedHoldings(ctx context.Context) ([]pricedHolding, error) {
-	holdings, err := s.repo.CurrentHoldings(ctx)
+func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope) ([]pricedHolding, error) {
+	holdings, err := s.repo.CurrentHoldings(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (s *SummaryService) pricedHoldings(ctx context.Context) ([]pricedHolding, e
 // value for all instruments still held. Holdings that couldn't be priced
 // are excluded from the market value total but still counted in invested
 // value.
-func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary, error) {
-	holdings, err := s.pricedHoldings(ctx)
+func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope) (*HoldingsSummary, error) {
+	holdings, err := s.pricedHoldings(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -111,8 +111,8 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context) (*HoldingsSummary,
 // instruments couldn't be priced (a partial market value would understate
 // the sector's true value and produce a misleading loss). Sorted
 // descending by invested value.
-func (s *SummaryService) SectorAllocations(ctx context.Context) ([]SectorAllocation, error) {
-	holdings, err := s.pricedHoldings(ctx)
+func (s *SummaryService) SectorAllocations(ctx context.Context, scope Scope) ([]SectorAllocation, error) {
+	holdings, err := s.pricedHoldings(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -172,13 +172,13 @@ func (s *SummaryService) SectorAllocations(ctx context.Context) ([]SectorAllocat
 // interest income received in the last 365 days, as a percentage of
 // current market value. Zero if there's no current market value to divide
 // by.
-func (s *SummaryService) PassiveIncome(ctx context.Context) (*PassiveIncome, error) {
-	trailingYear, priorYear, err := s.repo.TrailingYearIncome(ctx)
+func (s *SummaryService) PassiveIncome(ctx context.Context, scope Scope) (*PassiveIncome, error) {
+	trailingYear, priorYear, err := s.repo.TrailingYearIncome(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
 
-	holdings, err := s.HoldingsSummary(ctx)
+	holdings, err := s.HoldingsSummary(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -209,13 +209,13 @@ func (s *SummaryService) PassiveIncome(ctx context.Context) (*PassiveIncome, err
 // calculation restricted to instruments still held today (excluding
 // fully-exited positions and INTEREST, which has no instrument to
 // restrict by; see Repository.CurrentHoldingsCashFlows).
-func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error) {
-	holdings, err := s.HoldingsSummary(ctx)
+func (s *SummaryService) PortfolioIRR(ctx context.Context, scope Scope) (*PortfolioIRR, error) {
+	holdings, err := s.HoldingsSummary(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
 
-	allFlows, err := s.repo.InvestmentCashFlows(ctx)
+	allFlows, err := s.repo.InvestmentCashFlows(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +226,7 @@ func (s *SummaryService) PortfolioIRR(ctx context.Context) (*PortfolioIRR, error
 
 	result := &PortfolioIRR{IRR: rate}
 
-	currentFlows, err := s.repo.CurrentHoldingsCashFlows(ctx)
+	currentFlows, err := s.repo.CurrentHoldingsCashFlows(ctx, scope)
 	if err != nil {
 		return nil, err
 	}
@@ -263,8 +263,8 @@ func computeIRR(cashFlows []CashFlow, terminalValueGBP decimal.Decimal) (float64
 // by that day — that instrument is simply omitted from that day's sum, the
 // same way a permanently unpriceable instrument (delisted/unmapped symbol)
 // is omitted from every day's sum in HoldingsSummary.
-func (s *SummaryService) MarketValueSeries(ctx context.Context) ([]ValuePoint, error) {
-	deltas, err := s.repo.ShareDeltasForCurrentHoldings(ctx)
+func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]ValuePoint, error) {
+	deltas, err := s.repo.ShareDeltasForCurrentHoldings(ctx, scope)
 	if err != nil {
 		return nil, err
 	}

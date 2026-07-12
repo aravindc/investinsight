@@ -32,7 +32,12 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
-	transactions, err := h.repo.ListTransactions(c.Request.Context(), 200)
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	transactions, err := h.repo.ListTransactions(c.Request.Context(), 200, scope)
 	if err != nil {
 		h.log.Error("failed to list transactions", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load transactions"})
@@ -42,7 +47,12 @@ func (h *Handler) listTransactions(c *gin.Context) {
 }
 
 func (h *Handler) holdingsSummary(c *gin.Context) {
-	summary, err := h.summary.HoldingsSummary(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	summary, err := h.summary.HoldingsSummary(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute holdings summary", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load holdings summary"})
@@ -52,7 +62,12 @@ func (h *Handler) holdingsSummary(c *gin.Context) {
 }
 
 func (h *Handler) dividendsSummary(c *gin.Context) {
-	summary, err := h.repo.DividendsSummary(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	summary, err := h.repo.DividendsSummary(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute dividends summary", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load dividends summary"})
@@ -62,7 +77,12 @@ func (h *Handler) dividendsSummary(c *gin.Context) {
 }
 
 func (h *Handler) monthlyDividends(c *gin.Context) {
-	months, err := h.repo.MonthlyDividends(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	months, err := h.repo.MonthlyDividends(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute monthly dividends", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load monthly dividends"})
@@ -72,7 +92,12 @@ func (h *Handler) monthlyDividends(c *gin.Context) {
 }
 
 func (h *Handler) investedValueSeries(c *gin.Context) {
-	series, err := h.repo.InvestedValueSeries(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	series, err := h.repo.InvestedValueSeries(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute invested value series", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load invested value series"})
@@ -82,7 +107,12 @@ func (h *Handler) investedValueSeries(c *gin.Context) {
 }
 
 func (h *Handler) marketValueSeries(c *gin.Context) {
-	series, err := h.summary.MarketValueSeries(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	series, err := h.summary.MarketValueSeries(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute market value series", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load market value series"})
@@ -92,7 +122,12 @@ func (h *Handler) marketValueSeries(c *gin.Context) {
 }
 
 func (h *Handler) sectorAllocations(c *gin.Context) {
-	allocations, err := h.summary.SectorAllocations(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	allocations, err := h.summary.SectorAllocations(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute sector allocations", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load sector allocations"})
@@ -102,7 +137,12 @@ func (h *Handler) sectorAllocations(c *gin.Context) {
 }
 
 func (h *Handler) passiveIncome(c *gin.Context) {
-	income, err := h.summary.PassiveIncome(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	income, err := h.summary.PassiveIncome(c.Request.Context(), scope)
 	if err != nil {
 		h.log.Error("failed to compute passive income", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load passive income"})
@@ -112,7 +152,12 @@ func (h *Handler) passiveIncome(c *gin.Context) {
 }
 
 func (h *Handler) portfolioIRR(c *gin.Context) {
-	result, err := h.summary.PortfolioIRR(c.Request.Context())
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := h.summary.PortfolioIRR(c.Request.Context(), scope)
 	if err != nil {
 		switch err {
 		case xirr.ErrNoCashFlows, xirr.ErrNoSignChange:

@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
+	"investinsight/middleware/internal/account"
 	"investinsight/middleware/internal/config"
 	"investinsight/middleware/internal/db"
 	"investinsight/middleware/internal/ingest"
@@ -68,6 +69,10 @@ func main() {
 	ingestEngine := ingest.NewEngine(database)
 	ingestHandler := ingest.NewHandler(ingestEngine, logger)
 	ingestHandler.RegisterRoutes(api)
+
+	accountRepo := account.NewRepository(database)
+	accountHandler := account.NewHandler(accountRepo, logger)
+	accountHandler.RegisterRoutes(api)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
