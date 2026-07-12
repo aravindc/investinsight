@@ -1,3 +1,4 @@
+import { HoldingsTable } from '@/components/HoldingsTable'
 import { InvestedValueChart } from '@/components/InvestedValueChart'
 import { IrrCard } from '@/components/IrrCard'
 import { PassiveIncomeCard } from '@/components/PassiveIncomeCard'
@@ -16,6 +17,7 @@ export function HoldingsPage() {
       </div>
       <SectorAllocationSection />
       <InvestedValueChart />
+      <HoldingsTable />
     </div>
   )
 }

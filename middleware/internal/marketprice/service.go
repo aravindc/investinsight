@@ -150,22 +150,36 @@ func (s *Service) ClosePriceGBP(ctx context.Context, inst Instrument, date time.
 	return s.ConvertToGBP(ctx, stored.Close, stored.Currency, date)
 }
 
+// normalizeCurrency preserves the pence-vs-pounds distinction Yahoo
+// reports, rather than collapsing it: LSE-listed equities are quoted in
+// pence as "GBp" (lowercase p — normalized here to "GBX", matching the
+// broker CSV convention for the same thing), while some LSE-listed
+// instruments (notably accumulating ETFs like VUAG/VUSA/VWRP) are quoted
+// by Yahoo in whole pounds as "GBP" (capital P) and must NOT be treated as
+// pence. Case-sensitive exact match on the original Yahoo string is
+// required — do not uppercase before this check.
 func normalizeCurrency(currency string) string {
-	currency = strings.ToUpper(currency)
-	if currency == "GBP" || currency == "GBX" {
-		return "GBP" // Yahoo reports LSE prices as "GBp" (pence); stored as GBP, pence-adjusted below.
+	switch currency {
+	case "GBp", "GBX":
+		return "GBX"
+	case "GBP":
+		return "GBP"
+	default:
+		return strings.ToUpper(currency)
 	}
-	return currency
 }
 
 // ConvertToGBP converts a price in the given currency into GBP as of date.
-// GBP prices are assumed to be pence (matching the broker CSV convention:
-// LSE quotes arrive as "GBp"/pence and are stored/normalized as "GBP") and
-// are divided by 100. Any other currency (USD, EUR, ...) is converted using
-// the latest FX rate on or before date, fetched live from Yahoo Finance.
+// GBX prices are pence and are divided by 100; GBP prices are already
+// whole pounds and pass through unchanged. Any other currency (USD, EUR,
+// ...) is converted using the latest FX rate on or before date, fetched
+// live from Yahoo Finance.
 func (s *Service) ConvertToGBP(ctx context.Context, price decimal.Decimal, currency string, date time.Time) (decimal.Decimal, error) {
-	if currency == "GBP" {
+	switch currency {
+	case "GBX":
 		return price.Div(decimal.NewFromInt(100)), nil
+	case "GBP":
+		return price, nil
 	}
 
 	rate, err := s.fxRateToGBP(ctx, currency, date)

@@ -30,6 +30,25 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/irr", h.portfolioIRR)
 	router.GET("/portfolio/passive-income", h.passiveIncome)
 	router.GET("/portfolio/asset-categories", h.assetCategories)
+	router.GET("/portfolio/holdings-table", h.holdingsTable)
+}
+
+func (h *Handler) holdingsTable(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rows, err := h.summary.HoldingsTable(c.Request.Context(), scope)
+	if err != nil {
+		h.log.Error("failed to compute holdings table", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load holdings table"})
+		return
+	}
+	if rows == nil {
+		rows = []HoldingRow{}
+	}
+	c.JSON(http.StatusOK, rows)
 }
 
 func (h *Handler) assetCategories(c *gin.Context) {

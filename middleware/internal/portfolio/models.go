@@ -101,3 +101,52 @@ type AssetCategory struct {
 	Sector      string        `json:"sector"`
 	Instruments []AssetOption `json:"instruments"`
 }
+
+// HoldingRow is one currently-held instrument's full set of per-holding
+// figures, for the Holdings table. PerShare figures and PortfolioSharePercent
+// are nil/zero-valued in the ways noted per-field below when the underlying
+// data isn't available (unpriced instrument, no dividend history, etc.) —
+// callers must render those as "N/A" rather than 0.
+type HoldingRow struct {
+	InstrumentID uuid.UUID `json:"instrumentId"`
+	Ticker       string    `json:"ticker"`
+	Name         string    `json:"name"`
+
+	Shares decimal.Decimal `json:"shares"`
+
+	CostBasisGBP         decimal.Decimal `json:"costBasisGbp"`
+	CostBasisPerShareGBP decimal.Decimal `json:"costBasisPerShareGbp"`
+
+	// CurrentValueGBP and CurrentValuePerShareGBP are zero when Priced is
+	// false (the instrument couldn't be priced — see pricedHolding).
+	CurrentValueGBP         decimal.Decimal `json:"currentValueGbp"`
+	CurrentValuePerShareGBP decimal.Decimal `json:"currentValuePerShareGbp"`
+	Priced                  bool            `json:"priced"`
+
+	DividendsReceivedGBP         decimal.Decimal `json:"dividendsReceivedGbp"`
+	DividendsReceivedPerShareGBP decimal.Decimal `json:"dividendsReceivedPerShareGbp"`
+
+	// DividendYieldPercent is trailing-12-month dividend income divided by
+	// current value; nil if unpriced or zero trailing dividend income.
+	DividendYieldPercent *decimal.Decimal `json:"dividendYieldPercent"`
+
+	// DividendGrowthPercent compares total dividend income in the earliest
+	// vs. latest full calendar year within the last 5 years of history
+	// available for this instrument; nil if fewer than 2 distinct years of
+	// dividend history exist.
+	DividendGrowthPercent *decimal.Decimal `json:"dividendGrowthPercent"`
+
+	// TotalProfitGBP/TotalProfitPercent are nil if unpriced.
+	TotalProfitGBP     *decimal.Decimal `json:"totalProfitGbp"`
+	TotalProfitPercent *decimal.Decimal `json:"totalProfitPercent"`
+
+	// IRRPercent is the money-weighted return on this instrument's own cash
+	// flows plus current value as a terminal inflow; nil if unpriced or the
+	// solver has no defined rate (too little history, no sign change, or
+	// non-convergence).
+	IRRPercent *decimal.Decimal `json:"irrPercent"`
+
+	// PortfolioSharePercent is this holding's current value as a percent of
+	// the sum of every priced holding's current value; nil if unpriced.
+	PortfolioSharePercent *decimal.Decimal `json:"portfolioSharePercent"`
+}

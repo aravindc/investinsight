@@ -62,9 +62,29 @@ type CurrentHolding struct {
 	InvestedGBP  decimal.Decimal
 }
 
+// instrumentLedgerRow is one share/cost-affecting transaction, ordered for
+// the average-cost pool walk in CurrentHoldings.
+type instrumentLedgerRow struct {
+	InstrumentID uuid.UUID
+	Ticker       string
+	Name         string
+	BaseCurrency string
+	EntryType    string
+	Timestamp    time.Time
+	Shares       decimal.Decimal
+	NetAmountGBP decimal.Decimal
+}
+
 // CurrentHoldings lists every instrument with net shares
-// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
-// i.e. still held today.
+// (BUY/SELL/STOCK_SPLIT_OPEN/STOCK_SPLIT_CLOSE/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
+// i.e. still held today. InvestedGBP is the remaining cost basis under
+// average-cost (UK Section 104 pool) accounting: each BUY adds its shares
+// and cost to a running pool; each SELL removes shares from the pool at
+// the pool's current average cost per share (not at the sale's proceeds,
+// which is what a naive "total BUY cash minus total SELL cash" gets
+// wrong for any instrument that's been partially sold at a different
+// price than its average cost). Splits/distributions/acquisitions adjust
+// share count only — pool cost is unchanged, since no cash moves.
 func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Filter) ([]CurrentHolding, error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "pt", 1)
 	args := []any{scopeArg}
@@ -77,37 +97,12 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	query := fmt.Sprintf(`
 		SELECT
 			i.id, i.ticker, i.name, i.base_currency,
-			SUM(
-				CASE pt.entry_type
-					WHEN 'BUY' THEN pt.shares
-					WHEN 'SELL' THEN -pt.shares
-					WHEN 'STOCK_SPLIT' THEN pt.shares
-					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
-					WHEN 'ACQUISITION' THEN pt.shares
-					ELSE 0
-				END
-			) AS net_shares,
-			SUM(
-				CASE pt.entry_type
-					WHEN 'BUY' THEN pt.net_amount_gbp
-					WHEN 'SELL' THEN -pt.net_amount_gbp
-					ELSE 0
-				END
-			) AS invested_gbp
+			pt.entry_type, pt.timestamp, pt.shares, pt.net_amount_gbp
 		FROM portfolio_transactions pt
 		JOIN instruments i ON i.id = pt.instrument_id
 		WHERE %s
-		GROUP BY i.id, i.ticker, i.name, i.base_currency
-		HAVING SUM(
-			CASE pt.entry_type
-				WHEN 'BUY' THEN pt.shares
-				WHEN 'SELL' THEN -pt.shares
-				WHEN 'STOCK_SPLIT' THEN pt.shares
-				WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
-				WHEN 'ACQUISITION' THEN pt.shares
-				ELSE 0
-			END
-		) > 0;`, where)
+		AND pt.entry_type IN ('BUY', 'SELL', 'STOCK_SPLIT_OPEN', 'STOCK_SPLIT_CLOSE', 'STOCK_DISTRIBUTION', 'ACQUISITION')
+		ORDER BY i.id, pt.timestamp;`, where)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -115,15 +110,82 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	}
 	defer rows.Close()
 
-	var holdings []CurrentHolding
+	var ledger []instrumentLedgerRow
 	for rows.Next() {
-		var h CurrentHolding
-		if err := rows.Scan(&h.InstrumentID, &h.Ticker, &h.Name, &h.BaseCurrency, &h.NetShares, &h.InvestedGBP); err != nil {
+		var l instrumentLedgerRow
+		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
 			return nil, err
 		}
-		holdings = append(holdings, h)
+		ledger = append(ledger, l)
 	}
-	return holdings, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return poolCurrentHoldings(ledger), nil
+}
+
+// poolCurrentHoldings walks ledger (already ordered by instrument then
+// timestamp) maintaining a running (shares, pool cost) pair per
+// instrument, and returns one CurrentHolding for every instrument whose
+// final share count is positive.
+func poolCurrentHoldings(ledger []instrumentLedgerRow) []CurrentHolding {
+	type pool struct {
+		holding CurrentHolding
+		shares  decimal.Decimal
+		cost    decimal.Decimal
+	}
+	pools := make(map[uuid.UUID]*pool)
+	var order []uuid.UUID
+
+	for _, l := range ledger {
+		p, ok := pools[l.InstrumentID]
+		if !ok {
+			p = &pool{holding: CurrentHolding{
+				InstrumentID: l.InstrumentID,
+				Ticker:       l.Ticker,
+				Name:         l.Name,
+				BaseCurrency: l.BaseCurrency,
+			}}
+			pools[l.InstrumentID] = p
+			order = append(order, l.InstrumentID)
+		}
+
+		switch l.EntryType {
+		case "BUY":
+			p.shares = p.shares.Add(l.Shares)
+			p.cost = p.cost.Add(l.NetAmountGBP)
+		case "SELL":
+			if p.shares.IsPositive() {
+				// Remove shares at the pool's current average cost, not
+				// at the sale's proceeds. DivRound to a fixed precision —
+				// shopspring/decimal's plain Div can otherwise expand to
+				// an unbounded number of decimal places.
+				soldFraction := l.Shares.DivRound(p.shares, 10)
+				if soldFraction.GreaterThan(decimal.NewFromInt(1)) {
+					soldFraction = decimal.NewFromInt(1)
+				}
+				p.cost = p.cost.Sub(p.cost.Mul(soldFraction)).Round(4)
+			}
+			p.shares = p.shares.Sub(l.Shares)
+		case "STOCK_SPLIT_OPEN", "STOCK_DISTRIBUTION", "ACQUISITION":
+			p.shares = p.shares.Add(l.Shares)
+		case "STOCK_SPLIT_CLOSE":
+			p.shares = p.shares.Sub(l.Shares)
+		}
+	}
+
+	holdings := make([]CurrentHolding, 0, len(pools))
+	for _, id := range order {
+		p := pools[id]
+		if !p.shares.IsPositive() {
+			continue
+		}
+		p.holding.NetShares = p.shares
+		p.holding.InvestedGBP = p.cost
+		holdings = append(holdings, p.holding)
+	}
+	return holdings
 }
 
 // ShareDelta is one day's net change in shares held for an instrument.
@@ -134,7 +196,7 @@ type ShareDelta struct {
 }
 
 // ShareDeltasForCurrentHoldings returns every day with a share-count change
-// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) for instruments
+// (BUY/SELL/STOCK_SPLIT_OPEN/STOCK_SPLIT_CLOSE/STOCK_DISTRIBUTION/ACQUISITION) for instruments
 // that are still held today, ordered by instrument then date. Callers
 // compute running per-instrument totals via a cumulative sum over this
 // list, then join against daily prices to reconstruct historical value.
@@ -147,7 +209,8 @@ func (r *Repository) ShareDeltasForCurrentHoldings(ctx context.Context, scope Sc
 				CASE pt.entry_type
 					WHEN 'BUY' THEN pt.shares
 					WHEN 'SELL' THEN -pt.shares
-					WHEN 'STOCK_SPLIT' THEN pt.shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
+						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
 					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
 					WHEN 'ACQUISITION' THEN pt.shares
 					ELSE 0
@@ -164,7 +227,8 @@ func (r *Repository) ShareDeltasForCurrentHoldings(ctx context.Context, scope Sc
 				CASE entry_type
 					WHEN 'BUY' THEN shares
 					WHEN 'SELL' THEN -shares
-					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
 					WHEN 'STOCK_DISTRIBUTION' THEN shares
 					WHEN 'ACQUISITION' THEN shares
 					ELSE 0
@@ -364,6 +428,159 @@ func (r *Repository) InvestmentCashFlows(ctx context.Context, scope Scope, filte
 	return flows, rows.Err()
 }
 
+// InstrumentDividends sums dividend income received per instrument, across
+// all currently-held instruments matching scope. Instruments with no
+// dividend history are simply absent from the returned map.
+func (r *Repository) InstrumentDividends(ctx context.Context, scope Scope) (map[uuid.UUID]decimal.Decimal, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND %s
+		GROUP BY instrument_id;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	totals := make(map[uuid.UUID]decimal.Decimal)
+	for rows.Next() {
+		var id uuid.UUID
+		var total decimal.Decimal
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		totals[id] = total
+	}
+	return totals, rows.Err()
+}
+
+// InstrumentTrailingYearDividends sums dividend income received in the last
+// 365 days, per instrument. Used as the numerator for per-holding dividend
+// yield.
+func (r *Repository) InstrumentTrailingYearDividends(ctx context.Context, scope Scope) (map[uuid.UUID]decimal.Decimal, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND timestamp >= NOW() - INTERVAL '365 days' AND %s
+		GROUP BY instrument_id;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	totals := make(map[uuid.UUID]decimal.Decimal)
+	for rows.Next() {
+		var id uuid.UUID
+		var total decimal.Decimal
+		if err := rows.Scan(&id, &total); err != nil {
+			return nil, err
+		}
+		totals[id] = total
+	}
+	return totals, rows.Err()
+}
+
+// InstrumentYearlyDividend is one instrument's total dividend income
+// received in one calendar year.
+type InstrumentYearlyDividend struct {
+	InstrumentID uuid.UUID
+	Year         int
+	TotalGBP     decimal.Decimal
+}
+
+// InstrumentYearlyDividends returns total dividend income per instrument
+// per calendar year, across the full ledger history, for computing
+// per-holding dividend growth.
+func (r *Repository) InstrumentYearlyDividends(ctx context.Context, scope Scope) ([]InstrumentYearlyDividend, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	query := fmt.Sprintf(`
+		SELECT instrument_id, EXTRACT(YEAR FROM timestamp)::int AS year, SUM(net_amount_gbp)
+		FROM portfolio_transactions
+		WHERE entry_type = 'DIVIDEND' AND %s
+		GROUP BY instrument_id, year
+		ORDER BY instrument_id, year;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var yearly []InstrumentYearlyDividend
+	for rows.Next() {
+		var y InstrumentYearlyDividend
+		if err := rows.Scan(&y.InstrumentID, &y.Year, &y.TotalGBP); err != nil {
+			return nil, err
+		}
+		yearly = append(yearly, y)
+	}
+	return yearly, rows.Err()
+}
+
+// InstrumentCashFlow is one dated external cash flow attributed to a single
+// instrument (see CurrentHoldingsCashFlows for the flat, non-attributed
+// version).
+type InstrumentCashFlow struct {
+	InstrumentID uuid.UUID
+	Date         time.Time
+	AmountGBP    decimal.Decimal
+}
+
+// InstrumentCashFlows returns BUY/SELL/DIVIDEND cash flows (excluding
+// INTEREST, which has no instrument_id), attributed per instrument, for
+// instruments still held today — the per-holding equivalent of
+// CurrentHoldingsCashFlows, used to compute each holding's own IRR.
+func (r *Repository) InstrumentCashFlows(ctx context.Context, scope Scope) ([]InstrumentCashFlow, error) {
+	outerFilter, outerArg := buildScopeFilter(scope, "pt", 1)
+	innerFilter, _ := buildScopeFilter(scope, "", 1)
+
+	query := fmt.Sprintf(`
+		SELECT pt.instrument_id, pt.timestamp, pt.total_impact_gbp
+		FROM portfolio_transactions pt
+		WHERE pt.entry_type IN ('BUY', 'SELL', 'DIVIDEND')
+		AND %s
+		AND pt.instrument_id IN (
+			SELECT instrument_id
+			FROM portfolio_transactions
+			WHERE %s
+			GROUP BY instrument_id
+			HAVING SUM(
+				CASE entry_type
+					WHEN 'BUY' THEN shares
+					WHEN 'SELL' THEN -shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
+					WHEN 'STOCK_DISTRIBUTION' THEN shares
+					WHEN 'ACQUISITION' THEN shares
+					ELSE 0
+				END
+			) > 0
+		)
+		ORDER BY pt.instrument_id, pt.timestamp;`, outerFilter, innerFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, outerArg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var flows []InstrumentCashFlow
+	for rows.Next() {
+		var f InstrumentCashFlow
+		if err := rows.Scan(&f.InstrumentID, &f.Date, &f.AmountGBP); err != nil {
+			return nil, err
+		}
+		flows = append(flows, f)
+	}
+	return flows, rows.Err()
+}
+
 // CurrentHoldingsCashFlows returns BUY/SELL/DIVIDEND cash flows (excluding
 // INTEREST, which has no instrument_id and so can't be attributed to a
 // position) for instruments that are still held today, i.e. narrower than
@@ -393,7 +610,8 @@ func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope, 
 				CASE entry_type
 					WHEN 'BUY' THEN shares
 					WHEN 'SELL' THEN -shares
-					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
 					WHEN 'STOCK_DISTRIBUTION' THEN shares
 					WHEN 'ACQUISITION' THEN shares
 					ELSE 0
