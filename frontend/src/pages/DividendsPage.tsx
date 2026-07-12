@@ -3,7 +3,7 @@ import { DividendsReceivedChart } from '@/components/DividendsReceivedChart'
 
 export function DividendsPage() {
   return (
-    <div className="grid grid-cols-2 gap-6">
+    <div className="grid gap-6">
       <DividendsReceivedChart />
       <DividendGrowthChart />
     </div>

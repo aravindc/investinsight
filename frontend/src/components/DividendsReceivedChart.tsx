@@ -29,10 +29,27 @@ type Point = {
   cumulativeGbp: number
 }
 
+// Last 12 calendar months of data (not the full lifetime history), so the
+// chart reflects trailing-year dividend income rather than the full history
+// since inception. The running total still carries forward the lifetime
+// total accrued before the window, rather than resetting to 0, so month 1
+// starts from cumulative-to-date instead of looking like income started
+// from scratch.
+function lastTwelveMonths(
+  months: { year: number; month: number; totalGbp: string }[],
+): { carriedGbp: number; months: { year: number; month: number; totalGbp: string }[] } {
+  const windowed = months.slice(-12)
+  const carried = months
+    .slice(0, months.length - windowed.length)
+    .reduce((sum, m) => sum + Number(m.totalGbp), 0)
+  return { carriedGbp: carried, months: windowed }
+}
+
 function toCumulativeSeries(
   months: { year: number; month: number; totalGbp: string }[],
+  carriedGbp: number,
 ): Point[] {
-  let running = 0
+  let running = carriedGbp
   return months.map((m) => {
     running += Number(m.totalGbp)
     return { label: `${MONTH_LABELS[m.month - 1]} ${String(m.year).slice(2)}`, cumulativeGbp: running }
@@ -47,7 +64,8 @@ export function DividendsReceivedChart() {
     enabled: !!scopeParam,
   })
 
-  const series = useMemo(() => toCumulativeSeries(data ?? []), [data])
+  const { carriedGbp, months } = useMemo(() => lastTwelveMonths(data ?? []), [data])
+  const series = useMemo(() => toCumulativeSeries(months, carriedGbp), [months, carriedGbp])
   const total = series.at(-1)?.cumulativeGbp ?? 0
 
   return (
@@ -60,7 +78,7 @@ export function DividendsReceivedChart() {
               <HelpCircle className="text-muted-foreground size-3.5" />
             </TooltipTrigger>
             <TooltipContent>
-              Cumulative dividend income received to date, month by month.
+              Cumulative dividend income received to date, shown over the last 12 months.
             </TooltipContent>
           </InfoTooltip>
         </CardTitle>

@@ -38,6 +38,17 @@ const YEAR_COLORS = [
 
 type MonthRow = Record<string, number | string> & { month: string }
 
+// Current year plus the previous 2 years (3 years total), rather than full
+// lifetime history, so the year-over-year comparison stays focused on recent
+// growth.
+function lastThreeYears(
+  months: { year: number; month: number; totalGbp: string }[],
+): { year: number; month: number; totalGbp: string }[] {
+  const latestYear = months.reduce((max, m) => Math.max(max, m.year), 0)
+  if (latestYear === 0) return []
+  return months.filter((m) => m.year > latestYear - 3)
+}
+
 function toByMonthRows(
   months: { year: number; month: number; totalGbp: string }[],
 ): { rows: MonthRow[]; years: number[] } {
@@ -59,7 +70,7 @@ export function DividendGrowthChart() {
     enabled: !!scopeParam,
   })
 
-  const { rows, years } = useMemo(() => toByMonthRows(data ?? []), [data])
+  const { rows, years } = useMemo(() => toByMonthRows(lastThreeYears(data ?? [])), [data])
 
   return (
     <Card>
@@ -71,7 +82,7 @@ export function DividendGrowthChart() {
               <HelpCircle className="text-muted-foreground size-3.5" />
             </TooltipTrigger>
             <TooltipContent>
-              Dividend income by calendar month, compared year over year.
+              Dividend income by calendar month for the current year and previous 2 years, compared year over year.
             </TooltipContent>
           </InfoTooltip>
         </CardTitle>
