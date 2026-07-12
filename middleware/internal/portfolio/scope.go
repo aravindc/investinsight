@@ -7,6 +7,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 )
 
 // Scope restricts portfolio queries to either a single account or every
@@ -54,4 +55,58 @@ func buildScopeFilter(scope Scope, alias string, argPos int) (string, any) {
 		return fmt.Sprintf("%s IN (SELECT id FROM accounts WHERE household_id = $%d)", col, argPos), scope.HouseholdID
 	}
 	return fmt.Sprintf("%s = $%d", col, argPos), scope.AccountID
+}
+
+// Filter narrows a Scope-restricted query to specific instruments (resolved
+// from the Analytics page's sector/asset multi-select). Active is false
+// when no filter was supplied at all (the "instrumentId" query param was
+// absent) — callers must behave exactly as if no filter existed: every
+// instrument included, cash-only entries (DEPOSIT/WITHDRAWAL/INTEREST, which
+// have no instrument_id) included. Active is true with a possibly-empty
+// InstrumentIDs when the frontend explicitly narrowed the selection —
+// including to a selection that resolves to zero instruments, which must
+// legitimately return empty/zero results, not "everything".
+type Filter struct {
+	Active        bool
+	InstrumentIDs []uuid.UUID
+}
+
+// NoFilter is the zero-value "no filter active" filter, used by every call
+// site outside the Analytics page so their behavior is unchanged.
+var NoFilter = Filter{}
+
+// parseInstrumentFilter reads zero or more repeated "instrumentId" query
+// params. Returns Filter{} (inactive) if the param was absent entirely.
+func parseInstrumentFilter(c *gin.Context) (Filter, error) {
+	raw := c.QueryArray("instrumentId")
+	if len(raw) == 0 {
+		return Filter{}, nil
+	}
+
+	ids := make([]uuid.UUID, 0, len(raw))
+	for _, s := range raw {
+		id, err := uuid.Parse(s)
+		if err != nil {
+			return Filter{}, fmt.Errorf("invalid instrumentId: %w", err)
+		}
+		ids = append(ids, id)
+	}
+	return Filter{Active: true, InstrumentIDs: ids}, nil
+}
+
+// buildInstrumentFilter returns a SQL condition restricting alias's
+// instrument_id to filter.InstrumentIDs, plus its bind arg, when
+// filter.Active is true. Returns ("", nil, false) when the filter is
+// inactive — callers must skip appending both the condition and the arg
+// entirely in that case (an inactive filter means "no restriction," which
+// is the absence of a WHERE clause, not an always-true one).
+func buildInstrumentFilter(filter Filter, alias string, argPos int) (string, any, bool) {
+	if !filter.Active {
+		return "", nil, false
+	}
+	col := "instrument_id"
+	if alias != "" {
+		col = alias + "." + col
+	}
+	return fmt.Sprintf("%s = ANY($%d)", col, argPos), pq.Array(filter.InstrumentIDs), true
 }

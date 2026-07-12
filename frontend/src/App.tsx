@@ -5,6 +5,7 @@ import { TooltipProvider } from '@/components/ui/tooltip'
 import { AccountProvider } from '@/lib/account-scope'
 import { ThemeProvider } from '@/lib/theme'
 import { AdminPage } from '@/pages/AdminPage'
+import { AnalyticsPage } from '@/pages/AnalyticsPage'
 import { DividendsPage } from '@/pages/DividendsPage'
 import { HoldingsPage } from '@/pages/HoldingsPage'
 import { TransactionsPage } from '@/pages/TransactionsPage'
@@ -25,6 +26,7 @@ function App() {
                     <Route path="/" element={<HoldingsPage />} />
                     <Route path="/dividends" element={<DividendsPage />} />
                     <Route path="/transactions" element={<TransactionsPage />} />
+                    <Route path="/analytics" element={<AnalyticsPage />} />
                     <Route path="/admin" element={<AdminPage />} />
                   </Routes>
                 </main>

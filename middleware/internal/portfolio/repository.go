@@ -56,6 +56,7 @@ func (r *Repository) ListTransactions(ctx context.Context, limit int, scope Scop
 type CurrentHolding struct {
 	InstrumentID uuid.UUID
 	Ticker       string
+	Name         string
 	BaseCurrency string
 	NetShares    decimal.Decimal
 	InvestedGBP  decimal.Decimal
@@ -64,11 +65,18 @@ type CurrentHolding struct {
 // CurrentHoldings lists every instrument with net shares
 // (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
 // i.e. still held today.
-func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope) ([]CurrentHolding, error) {
+func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Filter) ([]CurrentHolding, error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "pt", 1)
+	args := []any{scopeArg}
+	where := scopeFilter
+	if instFilter, instArg, ok := buildInstrumentFilter(filter, "pt", 2); ok {
+		where += " AND " + instFilter
+		args = append(args, instArg)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
-			i.id, i.ticker, i.base_currency,
+			i.id, i.ticker, i.name, i.base_currency,
 			SUM(
 				CASE pt.entry_type
 					WHEN 'BUY' THEN pt.shares
@@ -89,7 +97,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope) ([]Curren
 		FROM portfolio_transactions pt
 		JOIN instruments i ON i.id = pt.instrument_id
 		WHERE %s
-		GROUP BY i.id, i.ticker, i.base_currency
+		GROUP BY i.id, i.ticker, i.name, i.base_currency
 		HAVING SUM(
 			CASE pt.entry_type
 				WHEN 'BUY' THEN pt.shares
@@ -99,9 +107,9 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope) ([]Curren
 				WHEN 'ACQUISITION' THEN pt.shares
 				ELSE 0
 			END
-		) > 0;`, scopeFilter)
+		) > 0;`, where)
 
-	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -110,7 +118,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope) ([]Curren
 	var holdings []CurrentHolding
 	for rows.Next() {
 		var h CurrentHolding
-		if err := rows.Scan(&h.InstrumentID, &h.Ticker, &h.BaseCurrency, &h.NetShares, &h.InvestedGBP); err != nil {
+		if err := rows.Scan(&h.InstrumentID, &h.Ticker, &h.Name, &h.BaseCurrency, &h.NetShares, &h.InvestedGBP); err != nil {
 			return nil, err
 		}
 		holdings = append(holdings, h)
@@ -250,8 +258,20 @@ func (r *Repository) DividendsSummary(ctx context.Context, scope Scope) (*Divide
 // TrailingYearIncome sums dividend and interest income received in the
 // last 365 days (the numerator for the passive-income yield) and in the
 // preceding 365 days (365-730 days ago), for a year-over-year comparison.
-func (r *Repository) TrailingYearIncome(ctx context.Context, scope Scope) (trailing, prior decimal.Decimal, err error) {
+func (r *Repository) TrailingYearIncome(ctx context.Context, scope Scope, filter Filter) (trailing, prior decimal.Decimal, err error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	args := []any{scopeArg}
+
+	// INTEREST has no instrument_id, so it can never match an instrument
+	// allowlist — when a filter is active, drop it from the entry_type list
+	// explicitly (rather than relying on "NULL = ANY(...)" being falsy) so
+	// "cash income excluded once filtered" is visible in the SQL.
+	where := "entry_type IN ('DIVIDEND', 'INTEREST') AND " + scopeFilter
+	if instFilter, instArg, ok := buildInstrumentFilter(filter, "", 2); ok {
+		where = "entry_type = 'DIVIDEND' AND " + scopeFilter + " AND " + instFilter
+		args = append(args, instArg)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT
 			COALESCE(SUM(net_amount_gbp) FILTER (
@@ -262,9 +282,9 @@ func (r *Repository) TrailingYearIncome(ctx context.Context, scope Scope) (trail
 				AND timestamp < NOW() - INTERVAL '365 days'
 			), 0) AS prior
 		FROM portfolio_transactions
-		WHERE entry_type IN ('DIVIDEND', 'INTEREST') AND %s;`, scopeFilter)
+		WHERE %s;`, where)
 
-	if err := r.db.QueryRowContext(ctx, query, scopeArg).Scan(&trailing, &prior); err != nil {
+	if err := r.db.QueryRowContext(ctx, query, args...).Scan(&trailing, &prior); err != nil {
 		return decimal.Zero, decimal.Zero, err
 	}
 	return trailing, prior, nil
@@ -309,15 +329,25 @@ func (r *Repository) MonthlyDividends(ctx context.Context, scope Scope) ([]Month
 // Deposits and withdrawals are excluded — those move money into/out of the
 // ISA cash balance, not into/out of invested holdings. Used as the input
 // series for the portfolio's money-weighted rate of return (XIRR).
-func (r *Repository) InvestmentCashFlows(ctx context.Context, scope Scope) ([]CashFlow, error) {
+func (r *Repository) InvestmentCashFlows(ctx context.Context, scope Scope, filter Filter) ([]CashFlow, error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "", 1)
+	args := []any{scopeArg}
+
+	// Same reasoning as TrailingYearIncome: INTEREST has no instrument_id
+	// and is dropped explicitly once a filter is active.
+	where := "entry_type IN ('BUY', 'SELL', 'DIVIDEND', 'INTEREST') AND " + scopeFilter
+	if instFilter, instArg, ok := buildInstrumentFilter(filter, "", 2); ok {
+		where = "entry_type IN ('BUY', 'SELL', 'DIVIDEND') AND " + scopeFilter + " AND " + instFilter
+		args = append(args, instArg)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT timestamp, total_impact_gbp
 		FROM portfolio_transactions
-		WHERE entry_type IN ('BUY', 'SELL', 'DIVIDEND', 'INTEREST') AND %s
-		ORDER BY timestamp;`, scopeFilter)
+		WHERE %s
+		ORDER BY timestamp;`, where)
 
-	rows, err := r.db.QueryContext(ctx, query, scopeArg)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}
@@ -338,9 +368,17 @@ func (r *Repository) InvestmentCashFlows(ctx context.Context, scope Scope) ([]Ca
 // INTEREST, which has no instrument_id and so can't be attributed to a
 // position) for instruments that are still held today, i.e. narrower than
 // InvestmentCashFlows: fully-exited positions are excluded entirely.
-func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope) ([]CashFlow, error) {
+func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope, filter Filter) ([]CashFlow, error) {
 	outerFilter, outerArg := buildScopeFilter(scope, "pt", 1)
 	innerFilter, _ := buildScopeFilter(scope, "", 1)
+	args := []any{outerArg}
+
+	where := outerFilter
+	if instFilter, instArg, ok := buildInstrumentFilter(filter, "pt", 2); ok {
+		where += " AND " + instFilter
+		args = append(args, instArg)
+	}
+
 	query := fmt.Sprintf(`
 		SELECT pt.timestamp, pt.total_impact_gbp
 		FROM portfolio_transactions pt
@@ -362,9 +400,9 @@ func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope) 
 				END
 			) > 0
 		)
-		ORDER BY pt.timestamp;`, outerFilter, innerFilter)
+		ORDER BY pt.timestamp;`, where, innerFilter)
 
-	rows, err := r.db.QueryContext(ctx, query, outerArg)
+	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
 		return nil, err
 	}

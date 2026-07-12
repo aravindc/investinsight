@@ -48,8 +48,8 @@ type pricedHolding struct {
 // instrument (e.g. unmapped symbol, Yahoo error), it's returned with
 // Priced=false rather than failing the whole request, and the failure is
 // logged.
-func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope) ([]pricedHolding, error) {
-	holdings, err := s.repo.CurrentHoldings(ctx, scope)
+func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope, filter Filter) ([]pricedHolding, error) {
+	holdings, err := s.repo.CurrentHoldings(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -84,8 +84,8 @@ func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope) ([]pri
 // value for all instruments still held. Holdings that couldn't be priced
 // are excluded from the market value total but still counted in invested
 // value.
-func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope) (*HoldingsSummary, error) {
-	holdings, err := s.pricedHoldings(ctx, scope)
+func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope, filter Filter) (*HoldingsSummary, error) {
+	holdings, err := s.pricedHoldings(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -112,7 +112,7 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope) (*Hol
 // the sector's true value and produce a misleading loss). Sorted
 // descending by invested value.
 func (s *SummaryService) SectorAllocations(ctx context.Context, scope Scope) ([]SectorAllocation, error) {
-	holdings, err := s.pricedHoldings(ctx, scope)
+	holdings, err := s.pricedHoldings(ctx, scope, NoFilter)
 	if err != nil {
 		return nil, err
 	}
@@ -168,17 +168,51 @@ func (s *SummaryService) SectorAllocations(ctx context.Context, scope Scope) ([]
 	return allocations, nil
 }
 
-// PassiveIncome reports a trailing-12-month income yield: dividend and
-// interest income received in the last 365 days, as a percentage of
-// current market value. Zero if there's no current market value to divide
-// by.
-func (s *SummaryService) PassiveIncome(ctx context.Context, scope Scope) (*PassiveIncome, error) {
-	trailingYear, priorYear, err := s.repo.TrailingYearIncome(ctx, scope)
+// AssetCategories groups every currently-held instrument by sector, for
+// populating the Analytics page's category/asset multi-select. Unlike
+// SectorAllocations, this needs no pricing — it's metadata only — so it
+// reads CurrentHoldings directly instead of going through pricedHoldings.
+func (s *SummaryService) AssetCategories(ctx context.Context, scope Scope) ([]AssetCategory, error) {
+	holdings, err := s.repo.CurrentHoldings(ctx, scope, NoFilter)
 	if err != nil {
 		return nil, err
 	}
 
-	holdings, err := s.HoldingsSummary(ctx, scope)
+	byS := make(map[string]*AssetCategory)
+	var order []string
+	for _, h := range holdings {
+		name := sector.ForTicker(h.Ticker)
+		c, ok := byS[name]
+		if !ok {
+			c = &AssetCategory{Sector: name}
+			byS[name] = c
+			order = append(order, name)
+		}
+		c.Instruments = append(c.Instruments, AssetOption{
+			InstrumentID: h.InstrumentID,
+			Ticker:       h.Ticker,
+			Name:         h.Name,
+		})
+	}
+
+	result := make([]AssetCategory, 0, len(byS))
+	for _, name := range order {
+		result = append(result, *byS[name])
+	}
+	return result, nil
+}
+
+// PassiveIncome reports a trailing-12-month income yield: dividend and
+// interest income received in the last 365 days, as a percentage of
+// current market value. Zero if there's no current market value to divide
+// by.
+func (s *SummaryService) PassiveIncome(ctx context.Context, scope Scope, filter Filter) (*PassiveIncome, error) {
+	trailingYear, priorYear, err := s.repo.TrailingYearIncome(ctx, scope, filter)
+	if err != nil {
+		return nil, err
+	}
+
+	holdings, err := s.HoldingsSummary(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -209,13 +243,13 @@ func (s *SummaryService) PassiveIncome(ctx context.Context, scope Scope) (*Passi
 // calculation restricted to instruments still held today (excluding
 // fully-exited positions and INTEREST, which has no instrument to
 // restrict by; see Repository.CurrentHoldingsCashFlows).
-func (s *SummaryService) PortfolioIRR(ctx context.Context, scope Scope) (*PortfolioIRR, error) {
-	holdings, err := s.HoldingsSummary(ctx, scope)
+func (s *SummaryService) PortfolioIRR(ctx context.Context, scope Scope, filter Filter) (*PortfolioIRR, error) {
+	holdings, err := s.HoldingsSummary(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}
 
-	allFlows, err := s.repo.InvestmentCashFlows(ctx, scope)
+	allFlows, err := s.repo.InvestmentCashFlows(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}
@@ -226,7 +260,7 @@ func (s *SummaryService) PortfolioIRR(ctx context.Context, scope Scope) (*Portfo
 
 	result := &PortfolioIRR{IRR: rate}
 
-	currentFlows, err := s.repo.CurrentHoldingsCashFlows(ctx, scope)
+	currentFlows, err := s.repo.CurrentHoldingsCashFlows(ctx, scope, filter)
 	if err != nil {
 		return nil, err
 	}

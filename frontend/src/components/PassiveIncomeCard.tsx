@@ -7,7 +7,8 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { fetchPassiveIncome } from '@/lib/api'
+import { useAnalyticsFilter } from '@/lib/analytics-filter'
+import { fetchPassiveIncome, type PassiveIncome } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
 function formatSignedPercent(value: number) {
@@ -15,14 +16,15 @@ function formatSignedPercent(value: number) {
   return value < 0 ? `-${formatted}` : `+${formatted}`
 }
 
-export function PassiveIncomeCard() {
-  const { scopeParam } = useAccountScope()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['passive-income', scopeParam],
-    queryFn: () => fetchPassiveIncome(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
+function PassiveIncomeCardView({
+  data,
+  isLoading,
+  error,
+}: {
+  data: PassiveIncome | undefined
+  isLoading: boolean
+  error: unknown
+}) {
   const changePercent = data?.changePercent !== null && data?.changePercent !== undefined
     ? Number(data.changePercent)
     : null
@@ -52,7 +54,7 @@ export function PassiveIncomeCard() {
         {isLoading && (
           <p className="text-muted-foreground mt-3 text-sm">Loading…</p>
         )}
-        {error && (
+        {!!error && (
           <p className="text-destructive mt-3 text-sm">
             Failed to load passive income.
           </p>
@@ -82,4 +84,27 @@ export function PassiveIncomeCard() {
       </CardContent>
     </Card>
   )
+}
+
+export function PassiveIncomeCard() {
+  const { scopeParam } = useAccountScope()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['passive-income', scopeParam],
+    queryFn: () => fetchPassiveIncome(scopeParam!),
+    enabled: !!scopeParam,
+  })
+
+  return <PassiveIncomeCardView data={data} isLoading={isLoading} error={error} />
+}
+
+export function AnalyticsPassiveIncomeCard() {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['passive-income', scopeParam, resolvedInstrumentIds],
+    queryFn: () => fetchPassiveIncome(scopeParam!, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+  })
+
+  return <PassiveIncomeCardView data={data} isLoading={isLoading} error={error} />
 }

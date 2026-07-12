@@ -7,16 +7,18 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { fetchPortfolioIrr } from '@/lib/api'
+import { useAnalyticsFilter } from '@/lib/analytics-filter'
+import { fetchPortfolioIrr, type PortfolioIrr } from '@/lib/api'
 
-export function IrrCard() {
-  const { scopeParam } = useAccountScope()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['portfolio-irr', scopeParam],
-    queryFn: () => fetchPortfolioIrr(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
+function IrrCardView({
+  data,
+  isLoading,
+  error,
+}: {
+  data: PortfolioIrr | undefined
+  isLoading: boolean
+  error: unknown
+}) {
   const isPositive = (data?.irr ?? 0) >= 0
 
   return (
@@ -43,7 +45,7 @@ export function IrrCard() {
         {isLoading && (
           <p className="text-muted-foreground mt-3 text-sm">Loading…</p>
         )}
-        {error && (
+        {!!error && (
           <p className="text-destructive mt-3 text-sm">Failed to load IRR.</p>
         )}
         {data && data.irr === null && (
@@ -73,4 +75,27 @@ export function IrrCard() {
       </CardContent>
     </Card>
   )
+}
+
+export function IrrCard() {
+  const { scopeParam } = useAccountScope()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['portfolio-irr', scopeParam],
+    queryFn: () => fetchPortfolioIrr(scopeParam!),
+    enabled: !!scopeParam,
+  })
+
+  return <IrrCardView data={data} isLoading={isLoading} error={error} />
+}
+
+export function AnalyticsIrrCard() {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['portfolio-irr', scopeParam, resolvedInstrumentIds],
+    queryFn: () => fetchPortfolioIrr(scopeParam!, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+  })
+
+  return <IrrCardView data={data} isLoading={isLoading} error={error} />
 }

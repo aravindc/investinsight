@@ -29,6 +29,25 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
 	router.GET("/portfolio/irr", h.portfolioIRR)
 	router.GET("/portfolio/passive-income", h.passiveIncome)
+	router.GET("/portfolio/asset-categories", h.assetCategories)
+}
+
+func (h *Handler) assetCategories(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	categories, err := h.summary.AssetCategories(c.Request.Context(), scope)
+	if err != nil {
+		h.log.Error("failed to compute asset categories", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load asset categories"})
+		return
+	}
+	if categories == nil {
+		categories = []AssetCategory{}
+	}
+	c.JSON(http.StatusOK, categories)
 }
 
 func (h *Handler) listTransactions(c *gin.Context) {
@@ -52,7 +71,12 @@ func (h *Handler) holdingsSummary(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	summary, err := h.summary.HoldingsSummary(c.Request.Context(), scope)
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	summary, err := h.summary.HoldingsSummary(c.Request.Context(), scope, filter)
 	if err != nil {
 		h.log.Error("failed to compute holdings summary", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load holdings summary"})
@@ -142,7 +166,12 @@ func (h *Handler) passiveIncome(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	income, err := h.summary.PassiveIncome(c.Request.Context(), scope)
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	income, err := h.summary.PassiveIncome(c.Request.Context(), scope, filter)
 	if err != nil {
 		h.log.Error("failed to compute passive income", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load passive income"})
@@ -157,7 +186,12 @@ func (h *Handler) portfolioIRR(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	result, err := h.summary.PortfolioIRR(c.Request.Context(), scope)
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	result, err := h.summary.PortfolioIRR(c.Request.Context(), scope, filter)
 	if err != nil {
 		switch err {
 		case xirr.ErrNoCashFlows, xirr.ErrNoSignChange:

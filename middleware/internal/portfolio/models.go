@@ -3,6 +3,7 @@ package portfolio
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
@@ -85,4 +86,18 @@ type PassiveIncome struct {
 	YieldPercent    decimal.Decimal  `json:"yieldPercent"`
 	TrailingYearGBP decimal.Decimal  `json:"trailingYearGbp"`
 	ChangePercent   *decimal.Decimal `json:"changePercent"`
+}
+
+// AssetOption is one currently-held instrument, for populating the
+// Analytics page's category/asset multi-select.
+type AssetOption struct {
+	InstrumentID uuid.UUID `json:"instrumentId"`
+	Ticker       string    `json:"ticker"`
+	Name         string    `json:"name"`
+}
+
+// AssetCategory groups currently-held instruments by sector.
+type AssetCategory struct {
+	Sector      string        `json:"sector"`
+	Instruments []AssetOption `json:"instruments"`
 }
