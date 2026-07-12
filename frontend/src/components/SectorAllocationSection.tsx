@@ -1,22 +1,5 @@
 import { useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
-import {
-  Boxes,
-  Cpu,
-  Factory,
-  Fuel,
-  HeartPulse,
-  HelpCircle,
-  House,
-  Landmark,
-  Layers,
-  Mountain,
-  Radio,
-  ShoppingBag,
-  ShoppingCart,
-  Zap,
-  type LucideIcon,
-} from 'lucide-react'
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
@@ -30,81 +13,25 @@ import {
 import { useAccountScope } from '@/lib/account-scope'
 import { fetchSectorAllocations, type SectorAllocation } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
+import { colorForSector, iconForSector, MAX_SECTOR_SLICES } from '@/lib/sector'
 
 const INNER_RADIUS = '55%'
 const OUTER_RADIUS = '80%'
 // Guide circle sits just outside the ring, echoing the reference design.
 const GUIDE_RADIUS = '84%'
 
-// Fixed hue assignment by sector identity, matching the backend's declared
-// sector order — never reassigned based on sort order or filtering, so a
-// given sector keeps the same color across renders.
-const SECTOR_ORDER = [
-  'Technology',
-  'Financials',
-  'Healthcare',
-  'Consumer Staples',
-  'Consumer Discretionary',
-  'Energy',
-  'Materials',
-  'Industrials',
-  'Utilities',
-  'Real Estate',
-  'Communication Services',
-  'Funds & ETFs',
-  'Other',
-] as const
-
-const CHART_COLORS = [
-  'var(--color-chart-1)',
-  'var(--color-chart-2)',
-  'var(--color-chart-3)',
-  'var(--color-chart-4)',
-  'var(--color-chart-5)',
-  'var(--color-chart-6)',
-  'var(--color-chart-7)',
-  'var(--color-chart-8)',
-]
-
-const MAX_SLICES = CHART_COLORS.length
-
-const SECTOR_ICONS: Record<string, LucideIcon> = {
-  Technology: Cpu,
-  Financials: Landmark,
-  Healthcare: HeartPulse,
-  'Consumer Staples': ShoppingCart,
-  'Consumer Discretionary': ShoppingBag,
-  Energy: Fuel,
-  Materials: Mountain,
-  Industrials: Factory,
-  Utilities: Zap,
-  'Real Estate': House,
-  'Communication Services': Radio,
-  'Funds & ETFs': Layers,
-  Other: HelpCircle,
-}
-
 type Slice = {
   sector: string
   investedGbp: number
 }
 
-function colorForSector(sector: string): string {
-  const idx = SECTOR_ORDER.indexOf(sector as (typeof SECTOR_ORDER)[number])
-  return CHART_COLORS[idx % CHART_COLORS.length] ?? CHART_COLORS[CHART_COLORS.length - 1]
-}
-
-function iconForSector(sector: string): LucideIcon {
-  return SECTOR_ICONS[sector] ?? Boxes
-}
-
-// Collapses beyond the first (MAX_SLICES - 1) sectors into "Other" so the
+// Collapses beyond the first (MAX_SECTOR_SLICES - 1) sectors into "Other" so the
 // pie never exceeds the validated categorical palette size.
 function capSlices(allocations: Slice[]): Slice[] {
-  if (allocations.length <= MAX_SLICES) return allocations
+  if (allocations.length <= MAX_SECTOR_SLICES) return allocations
 
-  const kept = allocations.slice(0, MAX_SLICES - 1)
-  const overflow = allocations.slice(MAX_SLICES - 1)
+  const kept = allocations.slice(0, MAX_SECTOR_SLICES - 1)
+  const overflow = allocations.slice(MAX_SECTOR_SLICES - 1)
   const overflowTotal = overflow.reduce((sum, a) => sum + a.investedGbp, 0)
 
   const existingOther = kept.find((a) => a.sector === 'Other')

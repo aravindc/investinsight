@@ -6,6 +6,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
+import { colorForSector, iconForSector } from '@/lib/sector'
 import { useAnalyticsFilter, type FilterEntry } from '@/lib/analytics-filter'
 
 function entryKey(entry: FilterEntry): string {
@@ -100,39 +101,51 @@ export function AssetCategoryFilter() {
           {!isLoading && categories.length > 0 && filteredCategories.length === 0 && (
             <p className="text-muted-foreground p-2 text-sm">No matches.</p>
           )}
-          {filteredCategories.map((cat) => (
-            <div key={cat.sector} className="mb-1">
-              <button
-                type="button"
-                onClick={() => toggle({ type: 'category', sector: cat.sector })}
-                className="hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm font-medium"
-              >
-                {cat.sector}
-                {isSelected({ type: 'category', sector: cat.sector }) && (
-                  <span className="text-primary text-xs">Selected</span>
-                )}
-              </button>
-              <div className="ml-2">
-                {cat.instruments.map((inst) => (
-                  <button
-                    type="button"
-                    key={inst.instrumentId}
-                    onClick={() =>
-                      toggle({ type: 'asset', instrumentId: inst.instrumentId, ticker: inst.ticker })
-                    }
-                    className="hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm"
-                  >
-                    <span>
-                      {inst.name} ({inst.ticker})
+          {filteredCategories.map((cat) => {
+            const Icon = iconForSector(cat.sector)
+            const color = colorForSector(cat.sector)
+            return (
+              <div key={cat.sector} className="mb-1">
+                <button
+                  type="button"
+                  onClick={() => toggle({ type: 'category', sector: cat.sector })}
+                  className="hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm font-medium"
+                >
+                  <span className="flex items-center gap-2">
+                    <span
+                      className="flex size-6 items-center justify-center rounded-md"
+                      style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)`, color }}
+                    >
+                      <Icon className="size-3.5" />
                     </span>
-                    {isSelected({ type: 'asset', instrumentId: inst.instrumentId, ticker: inst.ticker }) && (
-                      <span className="text-primary text-xs">Selected</span>
-                    )}
-                  </button>
-                ))}
+                    {cat.sector}
+                  </span>
+                  {isSelected({ type: 'category', sector: cat.sector }) && (
+                    <span className="text-primary text-xs">Selected</span>
+                  )}
+                </button>
+                <div className="ml-2">
+                  {cat.instruments.map((inst) => (
+                    <button
+                      type="button"
+                      key={inst.instrumentId}
+                      onClick={() =>
+                        toggle({ type: 'asset', instrumentId: inst.instrumentId, ticker: inst.ticker })
+                      }
+                      className="hover:bg-accent flex w-full items-center justify-between rounded px-2 py-1 text-left text-sm"
+                    >
+                      <span>
+                        {inst.name} ({inst.ticker})
+                      </span>
+                      {isSelected({ type: 'asset', instrumentId: inst.instrumentId, ticker: inst.ticker }) && (
+                        <span className="text-primary text-xs">Selected</span>
+                      )}
+                    </button>
+                  ))}
+                </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
         {selected.length > 0 && (
           <div className="border-t p-2">
