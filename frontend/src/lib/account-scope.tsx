@@ -5,7 +5,7 @@ import {
   useState,
   type ReactNode,
 } from 'react'
-import { fetchAccounts, type Account } from '@/lib/api'
+import { fetchAccounts, fetchHouseholds, type Account, type Household } from '@/lib/api'
 
 export type AccountScope =
   | { kind: 'account'; accountId: string }
@@ -38,6 +38,7 @@ type AccountScopeContextValue = {
   scope: AccountScope | null
   setScope: (scope: AccountScope) => void
   accounts: Account[]
+  households: Household[]
   scopeParam: string | null
 }
 
@@ -45,18 +46,20 @@ const AccountScopeContext = createContext<AccountScopeContextValue | null>(null)
 
 export function AccountProvider({ children }: { children: ReactNode }) {
   const [accounts, setAccounts] = useState<Account[]>([])
+  const [households, setHouseholds] = useState<Household[]>([])
   const [scope, setScopeState] = useState<AccountScope | null>(null)
 
   useEffect(() => {
-    fetchAccounts().then((fetched) => {
-      setAccounts(fetched)
-      if (fetched.length === 0) return
+    Promise.all([fetchAccounts(), fetchHouseholds()]).then(([fetchedAccounts, fetchedHouseholds]) => {
+      setAccounts(fetchedAccounts)
+      setHouseholds(fetchedHouseholds)
+      if (fetchedAccounts.length === 0) return
 
       const stored = loadStoredScope()
-      if (stored && scopeIsValid(stored, fetched)) {
+      if (stored && scopeIsValid(stored, fetchedAccounts)) {
         setScopeState(stored)
       } else {
-        setScopeState({ kind: 'household', householdId: fetched[0].householdId })
+        setScopeState({ kind: 'household', householdId: fetchedAccounts[0].householdId })
       }
     })
   }, [])
@@ -72,6 +75,7 @@ export function AccountProvider({ children }: { children: ReactNode }) {
         scope,
         setScope,
         accounts,
+        households,
         scopeParam: scope ? scopeToParam(scope) : null,
       }}
     >
