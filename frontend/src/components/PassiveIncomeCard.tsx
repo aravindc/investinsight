@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchPassiveIncome } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -15,9 +16,11 @@ function formatSignedPercent(value: number) {
 }
 
 export function PassiveIncomeCard() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['passive-income'],
-    queryFn: fetchPassiveIncome,
+    queryKey: ['passive-income', scopeParam],
+    queryFn: () => fetchPassiveIncome(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const changePercent = data?.changePercent !== null && data?.changePercent !== undefined

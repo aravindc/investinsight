@@ -6,12 +6,15 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchPortfolioIrr } from '@/lib/api'
 
 export function IrrCard() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['portfolio-irr'],
-    queryFn: fetchPortfolioIrr,
+    queryKey: ['portfolio-irr', scopeParam],
+    queryFn: () => fetchPortfolioIrr(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const isPositive = (data?.irr ?? 0) >= 0

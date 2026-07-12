@@ -1,5 +1,6 @@
 import { Coins, LayoutDashboard, Receipt, Settings } from 'lucide-react'
 import { NavLink } from 'react-router-dom'
+import { AccountScopeSwitcher } from '@/components/AccountScopeSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { cn } from '@/lib/utils'
 
@@ -37,7 +38,10 @@ export function NavBar() {
             ))}
           </nav>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-3">
+          <AccountScopeSwitcher />
+          <ThemeToggle />
+        </div>
       </div>
     </header>
   )

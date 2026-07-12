@@ -25,6 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchTransactions, type PortfolioTransaction } from '@/lib/api'
 
 const ALL = '__all__'
@@ -55,9 +56,11 @@ const columns = [
 ]
 
 export function TransactionsTable() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['transactions'],
-    queryFn: fetchTransactions,
+    queryKey: ['transactions', scopeParam],
+    queryFn: () => fetchTransactions(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const [columnFilters, setColumnFilters] = useState<ColumnFiltersState>([])

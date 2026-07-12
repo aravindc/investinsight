@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchSectorAllocations, type SectorAllocation } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -116,9 +117,11 @@ function capSlices(allocations: Slice[]): Slice[] {
 }
 
 export function SectorAllocationSection() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['sector-allocations'],
-    queryFn: fetchSectorAllocations,
+    queryKey: ['sector-allocations', scopeParam],
+    queryFn: () => fetchSectorAllocations(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const allocations = data ?? []

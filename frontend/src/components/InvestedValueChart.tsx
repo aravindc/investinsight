@@ -11,6 +11,7 @@ import {
 } from 'recharts'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { useAccountScope } from '@/lib/account-scope'
 import {
   fetchInvestedValueSeries,
   fetchMarketValueSeries,
@@ -85,13 +86,16 @@ function filterByPeriod(points: MergedPoint[], period: PeriodKey): MergedPoint[]
 }
 
 export function InvestedValueChart() {
+  const { scopeParam } = useAccountScope()
   const invested = useQuery({
-    queryKey: ['invested-value-series'],
-    queryFn: fetchInvestedValueSeries,
+    queryKey: ['invested-value-series', scopeParam],
+    queryFn: () => fetchInvestedValueSeries(scopeParam!),
+    enabled: !!scopeParam,
   })
   const market = useQuery({
-    queryKey: ['market-value-series'],
-    queryFn: fetchMarketValueSeries,
+    queryKey: ['market-value-series', scopeParam],
+    queryFn: () => fetchMarketValueSeries(scopeParam!),
+    enabled: !!scopeParam,
   })
   const [period, setPeriod] = useState<PeriodKey>('all')
 

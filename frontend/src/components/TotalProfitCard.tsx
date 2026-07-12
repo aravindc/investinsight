@@ -6,6 +6,7 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useAccountScope } from '@/lib/account-scope'
 import {
   fetchHoldingsSummary,
   fetchMarketValueSeries,
@@ -23,13 +24,16 @@ function formatSignedPercent(value: number) {
 }
 
 export function TotalProfitCard() {
+  const { scopeParam } = useAccountScope()
   const holdings = useQuery({
-    queryKey: ['holdings-summary'],
-    queryFn: fetchHoldingsSummary,
+    queryKey: ['holdings-summary', scopeParam],
+    queryFn: () => fetchHoldingsSummary(scopeParam!),
+    enabled: !!scopeParam,
   })
   const marketSeries = useQuery({
-    queryKey: ['market-value-series'],
-    queryFn: fetchMarketValueSeries,
+    queryKey: ['market-value-series', scopeParam],
+    queryFn: () => fetchMarketValueSeries(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const isLoading = holdings.isLoading

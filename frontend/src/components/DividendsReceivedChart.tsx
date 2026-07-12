@@ -15,6 +15,7 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { HelpCircle } from 'lucide-react'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchMonthlyDividends } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -39,9 +40,11 @@ function toCumulativeSeries(
 }
 
 export function DividendsReceivedChart() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['monthly-dividends'],
-    queryFn: fetchMonthlyDividends,
+    queryKey: ['monthly-dividends', scopeParam],
+    queryFn: () => fetchMonthlyDividends(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   const series = useMemo(() => toCumulativeSeries(data ?? []), [data])

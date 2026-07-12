@@ -6,13 +6,16 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from '@/components/ui/tooltip'
+import { useAccountScope } from '@/lib/account-scope'
 import { fetchHoldingsSummary } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
 export function ValueCard() {
+  const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
-    queryKey: ['holdings-summary'],
-    queryFn: fetchHoldingsSummary,
+    queryKey: ['holdings-summary', scopeParam],
+    queryFn: () => fetchHoldingsSummary(scopeParam!),
+    enabled: !!scopeParam,
   })
 
   return (

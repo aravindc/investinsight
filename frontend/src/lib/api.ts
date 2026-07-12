@@ -23,6 +23,12 @@ export type CsvUploadResult = {
   errors: string[]
 }
 
+export type Account = {
+  id: string
+  householdId: string
+  name: string
+}
+
 export type InvestedValuePoint = {
   date: string
   valueGbp: string
@@ -59,48 +65,49 @@ export type PassiveIncome = {
   changePercent: string | null
 }
 
-async function fetchJson<T>(path: string): Promise<T> {
-  const res = await fetch(`/api${path}`)
+async function fetchJson<T>(path: string, params?: Record<string, string>): Promise<T> {
+  const qs = params ? `?${new URLSearchParams(params).toString()}` : ''
+  const res = await fetch(`/api${path}${qs}`)
   if (!res.ok) {
     throw new Error(`Request to ${path} failed: ${res.status}`)
   }
   return res.json() as Promise<T>
 }
 
-export function fetchTransactions() {
-  return fetchJson<PortfolioTransaction[]>('/transactions')
+export function fetchTransactions(scopeParam: string) {
+  return fetchJson<PortfolioTransaction[]>('/transactions', { scope: scopeParam })
 }
 
-export function fetchHoldingsSummary() {
-  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary')
+export function fetchHoldingsSummary(scopeParam: string) {
+  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary', { scope: scopeParam })
 }
 
-export function fetchDividendsSummary() {
-  return fetchJson<DividendsSummary>('/portfolio/dividends-summary')
+export function fetchDividendsSummary(scopeParam: string) {
+  return fetchJson<DividendsSummary>('/portfolio/dividends-summary', { scope: scopeParam })
 }
 
-export function fetchInvestedValueSeries() {
-  return fetchJson<InvestedValuePoint[]>('/portfolio/invested-value-series')
+export function fetchInvestedValueSeries(scopeParam: string) {
+  return fetchJson<InvestedValuePoint[]>('/portfolio/invested-value-series', { scope: scopeParam })
 }
 
-export function fetchMarketValueSeries() {
-  return fetchJson<InvestedValuePoint[]>('/portfolio/market-value-series')
+export function fetchMarketValueSeries(scopeParam: string) {
+  return fetchJson<InvestedValuePoint[]>('/portfolio/market-value-series', { scope: scopeParam })
 }
 
-export function fetchSectorAllocations() {
-  return fetchJson<SectorAllocation[]>('/portfolio/sector-allocations')
+export function fetchSectorAllocations(scopeParam: string) {
+  return fetchJson<SectorAllocation[]>('/portfolio/sector-allocations', { scope: scopeParam })
 }
 
-export function fetchMonthlyDividends() {
-  return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends')
+export function fetchMonthlyDividends(scopeParam: string) {
+  return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends', { scope: scopeParam })
 }
 
-export function fetchPortfolioIrr() {
-  return fetchJson<PortfolioIrr>('/portfolio/irr')
+export function fetchPortfolioIrr(scopeParam: string) {
+  return fetchJson<PortfolioIrr>('/portfolio/irr', { scope: scopeParam })
 }
 
-export function fetchPassiveIncome() {
-  return fetchJson<PassiveIncome>('/portfolio/passive-income')
+export function fetchPassiveIncome(scopeParam: string) {
+  return fetchJson<PassiveIncome>('/portfolio/passive-income', { scope: scopeParam })
 }
 
 export async function backfillMarketPrices() {
@@ -111,10 +118,11 @@ export async function backfillMarketPrices() {
   return res.json() as Promise<BackfillResult>
 }
 
-export async function uploadCsv(file: File, hasHeader: boolean) {
+export async function uploadCsv(file: File, hasHeader: boolean, accountId: string) {
   const formData = new FormData()
   formData.append('file', file)
   formData.append('hasHeader', String(hasHeader))
+  formData.append('accountId', accountId)
 
   const res = await fetch('/api/csv-upload', {
     method: 'POST',
@@ -124,4 +132,8 @@ export async function uploadCsv(file: File, hasHeader: boolean) {
     throw new Error(`CSV upload failed: ${res.status}`)
   }
   return res.json() as Promise<CsvUploadResult>
+}
+
+export function fetchAccounts() {
+  return fetchJson<Account[]>('/accounts')
 }
