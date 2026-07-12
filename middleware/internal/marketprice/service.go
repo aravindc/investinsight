@@ -68,11 +68,9 @@ func (s *Service) BackfillAll(ctx context.Context) (*BackfillResult, error) {
 }
 
 func (s *Service) fetchAndStore(ctx context.Context, inst Instrument, from, to time.Time) error {
-	symbol := YahooSymbol(inst.Ticker, inst.BaseCurrency)
-
-	closes, err := s.yahoo.FetchDailyCloses(ctx, symbol, from, to)
+	closes, _, err := s.fetchDailyClosesWithFallback(ctx, inst, from, to)
 	if err != nil {
-		return fmt.Errorf("fetching %s: %w", symbol, err)
+		return err
 	}
 
 	for i := range closes {
@@ -80,6 +78,40 @@ func (s *Service) fetchAndStore(ctx context.Context, inst Instrument, from, to t
 	}
 
 	return s.repo.UpsertPrices(ctx, inst.ID, closes)
+}
+
+// fetchDailyClosesWithFallback tries YahooSymbol's derived symbol first; if
+// that fails and the instrument isn't already suffixed for the LSE
+// (GBP/GBX instruments already get ".L"), it retries with ".L" appended.
+// This covers USD-denominated instruments that are nonetheless LSE-listed
+// (e.g. JPMorgan's UCITS ETFs like JEQP/JEGP/JEIP, quoted in USD but only
+// resolvable on Yahoo as "<ticker>.L") without needing a manual per-ticker
+// exchange mapping.
+func (s *Service) fetchDailyClosesWithFallback(ctx context.Context, inst Instrument, from, to time.Time) ([]DailyClose, string, error) {
+	symbol := YahooSymbol(inst.Ticker, inst.BaseCurrency)
+
+	closes, err := s.yahoo.FetchDailyCloses(ctx, symbol, from, to)
+	if err == nil && len(closes) > 0 {
+		return closes, symbol, nil
+	}
+
+	if strings.HasSuffix(symbol, ".L") {
+		if err != nil {
+			return nil, symbol, fmt.Errorf("fetching %s: %w", symbol, err)
+		}
+		return closes, symbol, nil
+	}
+
+	lseSymbol := symbol + ".L"
+	lseCloses, lseErr := s.yahoo.FetchDailyCloses(ctx, lseSymbol, from, to)
+	if lseErr == nil && len(lseCloses) > 0 {
+		return lseCloses, lseSymbol, nil
+	}
+
+	if err != nil {
+		return nil, symbol, fmt.Errorf("fetching %s: %w", symbol, err)
+	}
+	return closes, symbol, nil
 }
 
 // ClosePriceGBP returns the closing price for instrument on date, converted
@@ -95,8 +127,7 @@ func (s *Service) ClosePriceGBP(ctx context.Context, inst Instrument, date time.
 	liveCutoff := now.AddDate(0, 0, -(liveWindowDays - 1))
 
 	if !date.Before(liveCutoff) {
-		symbol := YahooSymbol(inst.Ticker, inst.BaseCurrency)
-		closes, err := s.yahoo.FetchDailyCloses(ctx, symbol, date.AddDate(0, 0, -7), now.AddDate(0, 0, 1))
+		closes, symbol, err := s.fetchDailyClosesWithFallback(ctx, inst, date.AddDate(0, 0, -7), now.AddDate(0, 0, 1))
 		if err != nil {
 			return decimal.Zero, fmt.Errorf("fetching live price for %s: %w", symbol, err)
 		}
