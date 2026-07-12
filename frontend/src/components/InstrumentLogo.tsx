@@ -1,20 +1,31 @@
 import { useState } from 'react'
 
-// Logos come from nvstly/icons (community-maintained, ticker-keyed, no
-// auth), served via jsdelivr's CDN mirror for better caching than
-// raw.githubusercontent. That repo is NYSE/NASDAQ-centric, so LSE-only
-// tickers routinely 404 — the initials badge is the expected fallback for
-// those, not an error state.
-function logoUrl(ticker: string, source: 'jsdelivr' | 'raw'): string {
+// Logo sources, tried in order: our own backend (logo.dev images fetched
+// and cached daily via POST /api/logos/backfill — see middleware/internal/logo),
+// then nvstly/icons (community-maintained, ticker-keyed, no auth) via
+// jsdelivr's CDN mirror, then raw.githubusercontent. nvstly/icons is
+// NYSE/NASDAQ-centric, so LSE-only tickers routinely 404 there — the
+// initials badge is the expected final fallback for those, not an error
+// state.
+type Stage = 'backend' | 'jsdelivr' | 'raw' | 'fallback'
+
+function logoUrl(instrumentId: string, ticker: string, stage: Stage): string {
+  if (stage === 'backend') return `/api/logos/${instrumentId}`
   const base =
-    source === 'jsdelivr'
+    stage === 'jsdelivr'
       ? 'https://cdn.jsdelivr.net/gh/nvstly/icons@main/ticker_icons'
       : 'https://raw.githubusercontent.com/nvstly/icons/main/ticker_icons'
   return `${base}/${ticker}.png`
 }
 
-export function InstrumentLogo({ ticker }: { ticker: string }) {
-  const [stage, setStage] = useState<'jsdelivr' | 'raw' | 'fallback'>('jsdelivr')
+function nextStage(stage: Stage): Stage {
+  if (stage === 'backend') return 'jsdelivr'
+  if (stage === 'jsdelivr') return 'raw'
+  return 'fallback'
+}
+
+export function InstrumentLogo({ instrumentId, ticker }: { instrumentId: string; ticker: string }) {
+  const [stage, setStage] = useState<Stage>('backend')
   const upper = ticker.toUpperCase()
 
   if (stage === 'fallback') {
@@ -27,10 +38,10 @@ export function InstrumentLogo({ ticker }: { ticker: string }) {
 
   return (
     <img
-      src={logoUrl(upper, stage)}
+      src={logoUrl(instrumentId, upper, stage)}
       alt={upper}
       className="size-9 shrink-0 rounded-md object-contain"
-      onError={() => setStage(stage === 'jsdelivr' ? 'raw' : 'fallback')}
+      onError={() => setStage(nextStage(stage))}
     />
   )
 }

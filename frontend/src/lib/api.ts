@@ -192,6 +192,14 @@ export async function backfillMarketPrices() {
   return res.json() as Promise<BackfillResult>
 }
 
+export async function backfillLogos() {
+  const res = await fetch('/api/logos/backfill', { method: 'POST' })
+  if (!res.ok) {
+    throw new Error(`Logo backfill failed: ${res.status}`)
+  }
+  return res.json() as Promise<BackfillResult>
+}
+
 export async function uploadCsv(file: File, hasHeader: boolean, accountId: string) {
   const formData = new FormData()
   formData.append('file', file)

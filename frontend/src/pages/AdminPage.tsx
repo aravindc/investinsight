@@ -1,5 +1,6 @@
 import { CsvUploadCard } from '@/components/CsvUploadCard'
 import { HouseholdAccountCard } from '@/components/HouseholdAccountCard'
+import { LogoBackfillCard } from '@/components/LogoBackfillCard'
 import { MarketPriceBackfillCard } from '@/components/MarketPriceBackfillCard'
 
 export function AdminPage() {
@@ -8,6 +9,7 @@ export function AdminPage() {
       <HouseholdAccountCard />
       <CsvUploadCard />
       <MarketPriceBackfillCard />
+      <LogoBackfillCard />
     </div>
   )
 }
