@@ -62,9 +62,29 @@ type CurrentHolding struct {
 	InvestedGBP  decimal.Decimal
 }
 
+// instrumentLedgerRow is one share/cost-affecting transaction, ordered for
+// the average-cost pool walk in CurrentHoldings.
+type instrumentLedgerRow struct {
+	InstrumentID uuid.UUID
+	Ticker       string
+	Name         string
+	BaseCurrency string
+	EntryType    string
+	Timestamp    time.Time
+	Shares       decimal.Decimal
+	NetAmountGBP decimal.Decimal
+}
+
 // CurrentHoldings lists every instrument with net shares
 // (BUY/SELL/STOCK_SPLIT_OPEN/STOCK_SPLIT_CLOSE/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
-// i.e. still held today.
+// i.e. still held today. InvestedGBP is the remaining cost basis under
+// average-cost (UK Section 104 pool) accounting: each BUY adds its shares
+// and cost to a running pool; each SELL removes shares from the pool at
+// the pool's current average cost per share (not at the sale's proceeds,
+// which is what a naive "total BUY cash minus total SELL cash" gets
+// wrong for any instrument that's been partially sold at a different
+// price than its average cost). Splits/distributions/acquisitions adjust
+// share count only — pool cost is unchanged, since no cash moves.
 func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Filter) ([]CurrentHolding, error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "pt", 1)
 	args := []any{scopeArg}
@@ -77,39 +97,12 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	query := fmt.Sprintf(`
 		SELECT
 			i.id, i.ticker, i.name, i.base_currency,
-			SUM(
-				CASE pt.entry_type
-					WHEN 'BUY' THEN pt.shares
-					WHEN 'SELL' THEN -pt.shares
-					WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
-						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
-					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
-					WHEN 'ACQUISITION' THEN pt.shares
-					ELSE 0
-				END
-			) AS net_shares,
-			SUM(
-				CASE pt.entry_type
-					WHEN 'BUY' THEN pt.net_amount_gbp
-					WHEN 'SELL' THEN -pt.net_amount_gbp
-					ELSE 0
-				END
-			) AS invested_gbp
+			pt.entry_type, pt.timestamp, pt.shares, pt.net_amount_gbp
 		FROM portfolio_transactions pt
 		JOIN instruments i ON i.id = pt.instrument_id
 		WHERE %s
-		GROUP BY i.id, i.ticker, i.name, i.base_currency
-		HAVING SUM(
-			CASE pt.entry_type
-				WHEN 'BUY' THEN pt.shares
-				WHEN 'SELL' THEN -pt.shares
-				WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
-						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
-				WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
-				WHEN 'ACQUISITION' THEN pt.shares
-				ELSE 0
-			END
-		) > 0;`, where)
+		AND pt.entry_type IN ('BUY', 'SELL', 'STOCK_SPLIT_OPEN', 'STOCK_SPLIT_CLOSE', 'STOCK_DISTRIBUTION', 'ACQUISITION')
+		ORDER BY i.id, pt.timestamp;`, where)
 
 	rows, err := r.db.QueryContext(ctx, query, args...)
 	if err != nil {
@@ -117,15 +110,82 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	}
 	defer rows.Close()
 
-	var holdings []CurrentHolding
+	var ledger []instrumentLedgerRow
 	for rows.Next() {
-		var h CurrentHolding
-		if err := rows.Scan(&h.InstrumentID, &h.Ticker, &h.Name, &h.BaseCurrency, &h.NetShares, &h.InvestedGBP); err != nil {
+		var l instrumentLedgerRow
+		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
 			return nil, err
 		}
-		holdings = append(holdings, h)
+		ledger = append(ledger, l)
 	}
-	return holdings, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return poolCurrentHoldings(ledger), nil
+}
+
+// poolCurrentHoldings walks ledger (already ordered by instrument then
+// timestamp) maintaining a running (shares, pool cost) pair per
+// instrument, and returns one CurrentHolding for every instrument whose
+// final share count is positive.
+func poolCurrentHoldings(ledger []instrumentLedgerRow) []CurrentHolding {
+	type pool struct {
+		holding CurrentHolding
+		shares  decimal.Decimal
+		cost    decimal.Decimal
+	}
+	pools := make(map[uuid.UUID]*pool)
+	var order []uuid.UUID
+
+	for _, l := range ledger {
+		p, ok := pools[l.InstrumentID]
+		if !ok {
+			p = &pool{holding: CurrentHolding{
+				InstrumentID: l.InstrumentID,
+				Ticker:       l.Ticker,
+				Name:         l.Name,
+				BaseCurrency: l.BaseCurrency,
+			}}
+			pools[l.InstrumentID] = p
+			order = append(order, l.InstrumentID)
+		}
+
+		switch l.EntryType {
+		case "BUY":
+			p.shares = p.shares.Add(l.Shares)
+			p.cost = p.cost.Add(l.NetAmountGBP)
+		case "SELL":
+			if p.shares.IsPositive() {
+				// Remove shares at the pool's current average cost, not
+				// at the sale's proceeds. DivRound to a fixed precision —
+				// shopspring/decimal's plain Div can otherwise expand to
+				// an unbounded number of decimal places.
+				soldFraction := l.Shares.DivRound(p.shares, 10)
+				if soldFraction.GreaterThan(decimal.NewFromInt(1)) {
+					soldFraction = decimal.NewFromInt(1)
+				}
+				p.cost = p.cost.Sub(p.cost.Mul(soldFraction)).Round(4)
+			}
+			p.shares = p.shares.Sub(l.Shares)
+		case "STOCK_SPLIT_OPEN", "STOCK_DISTRIBUTION", "ACQUISITION":
+			p.shares = p.shares.Add(l.Shares)
+		case "STOCK_SPLIT_CLOSE":
+			p.shares = p.shares.Sub(l.Shares)
+		}
+	}
+
+	holdings := make([]CurrentHolding, 0, len(pools))
+	for _, id := range order {
+		p := pools[id]
+		if !p.shares.IsPositive() {
+			continue
+		}
+		p.holding.NetShares = p.shares
+		p.holding.InvestedGBP = p.cost
+		holdings = append(holdings, p.holding)
+	}
+	return holdings
 }
 
 // ShareDelta is one day's net change in shares held for an instrument.

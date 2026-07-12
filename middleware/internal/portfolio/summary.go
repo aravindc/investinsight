@@ -100,7 +100,7 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope, filte
 	}
 
 	return &HoldingsSummary{
-		InvestedValueGBP: invested,
+		InvestedValueGBP: invested.Round(2),
 		MarketValueGBP:   marketValue.Round(2),
 	}, nil
 }
