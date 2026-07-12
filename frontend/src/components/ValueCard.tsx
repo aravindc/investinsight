@@ -7,17 +7,19 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { fetchHoldingsSummary } from '@/lib/api'
+import { useAnalyticsFilter } from '@/lib/analytics-filter'
+import { fetchHoldingsSummary, type HoldingsSummary } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
-export function ValueCard() {
-  const { scopeParam } = useAccountScope()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['holdings-summary', scopeParam],
-    queryFn: () => fetchHoldingsSummary(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
+function ValueCardView({
+  data,
+  isLoading,
+  error,
+}: {
+  data: HoldingsSummary | undefined
+  isLoading: boolean
+  error: unknown
+}) {
   return (
     <Card>
       <CardContent>
@@ -39,7 +41,7 @@ export function ValueCard() {
         {isLoading && (
           <p className="text-muted-foreground mt-3 text-sm">Loading…</p>
         )}
-        {error && (
+        {!!error && (
           <p className="text-destructive mt-3 text-sm">
             Failed to load holdings summary.
           </p>
@@ -57,4 +59,27 @@ export function ValueCard() {
       </CardContent>
     </Card>
   )
+}
+
+export function ValueCard() {
+  const { scopeParam } = useAccountScope()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['holdings-summary', scopeParam],
+    queryFn: () => fetchHoldingsSummary(scopeParam!),
+    enabled: !!scopeParam,
+  })
+
+  return <ValueCardView data={data} isLoading={isLoading} error={error} />
+}
+
+export function AnalyticsValueCard() {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  const { data, isLoading, error } = useQuery({
+    queryKey: ['holdings-summary', scopeParam, resolvedInstrumentIds],
+    queryFn: () => fetchHoldingsSummary(scopeParam!, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+  })
+
+  return <ValueCardView data={data} isLoading={isLoading} error={error} />
 }

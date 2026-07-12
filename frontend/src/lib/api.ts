@@ -70,9 +70,28 @@ export type PassiveIncome = {
   changePercent: string | null
 }
 
-async function fetchJson<T>(path: string, params?: Record<string, string>): Promise<T> {
-  const qs = params ? `?${new URLSearchParams(params).toString()}` : ''
-  const res = await fetch(`/api${path}${qs}`)
+export type AssetOption = {
+  instrumentId: string
+  ticker: string
+  name: string
+}
+
+export type AssetCategory = {
+  sector: string
+  instruments: AssetOption[]
+}
+
+async function fetchJson<T>(path: string, params?: Record<string, string | string[]>): Promise<T> {
+  const qs = new URLSearchParams()
+  for (const [key, value] of Object.entries(params ?? {})) {
+    if (Array.isArray(value)) {
+      value.forEach((v) => qs.append(key, v))
+    } else {
+      qs.append(key, value)
+    }
+  }
+  const queryString = qs.toString()
+  const res = await fetch(`/api${path}${queryString ? `?${queryString}` : ''}`)
   if (!res.ok) {
     throw new Error(`Request to ${path} failed: ${res.status}`)
   }
@@ -96,8 +115,11 @@ export function fetchTransactions(scopeParam: string) {
   return fetchJson<PortfolioTransaction[]>('/transactions', { scope: scopeParam })
 }
 
-export function fetchHoldingsSummary(scopeParam: string) {
-  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary', { scope: scopeParam })
+export function fetchHoldingsSummary(scopeParam: string, instrumentIds?: string[]) {
+  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary', {
+    scope: scopeParam,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
 }
 
 export function fetchDividendsSummary(scopeParam: string) {
@@ -120,12 +142,22 @@ export function fetchMonthlyDividends(scopeParam: string) {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends', { scope: scopeParam })
 }
 
-export function fetchPortfolioIrr(scopeParam: string) {
-  return fetchJson<PortfolioIrr>('/portfolio/irr', { scope: scopeParam })
+export function fetchPortfolioIrr(scopeParam: string, instrumentIds?: string[]) {
+  return fetchJson<PortfolioIrr>('/portfolio/irr', {
+    scope: scopeParam,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
 }
 
-export function fetchPassiveIncome(scopeParam: string) {
-  return fetchJson<PassiveIncome>('/portfolio/passive-income', { scope: scopeParam })
+export function fetchPassiveIncome(scopeParam: string, instrumentIds?: string[]) {
+  return fetchJson<PassiveIncome>('/portfolio/passive-income', {
+    scope: scopeParam,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
+}
+
+export function fetchAssetCategories(scopeParam: string) {
+  return fetchJson<AssetCategory[]>('/portfolio/asset-categories', { scope: scopeParam })
 }
 
 export async function backfillMarketPrices() {

@@ -7,9 +7,12 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
+import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import {
   fetchHoldingsSummary,
   fetchMarketValueSeries,
+  type HoldingsSummary,
+  type InvestedValuePoint,
 } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -23,31 +26,26 @@ function formatSignedPercent(value: number) {
   return value < 0 ? `-${formatted}` : `+${formatted}`
 }
 
-export function TotalProfitCard() {
-  const { scopeParam } = useAccountScope()
-  const holdings = useQuery({
-    queryKey: ['holdings-summary', scopeParam],
-    queryFn: () => fetchHoldingsSummary(scopeParam!),
-    enabled: !!scopeParam,
-  })
-  const marketSeries = useQuery({
-    queryKey: ['market-value-series', scopeParam],
-    queryFn: () => fetchMarketValueSeries(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
-  const isLoading = holdings.isLoading
-  const error = holdings.error
-
-  const invested = Number(holdings.data?.investedValueGbp ?? 0)
-  const marketValue = Number(holdings.data?.marketValueGbp ?? 0)
+function TotalProfitCardView({
+  holdingsData,
+  marketSeriesData,
+  isLoading,
+  error,
+}: {
+  holdingsData: HoldingsSummary | undefined
+  marketSeriesData: InvestedValuePoint[] | undefined
+  isLoading: boolean
+  error: unknown
+}) {
+  const invested = Number(holdingsData?.investedValueGbp ?? 0)
+  const marketValue = Number(holdingsData?.marketValueGbp ?? 0)
   const profit = marketValue - invested
   const profitPercent = invested !== 0 ? (profit / invested) * 100 : 0
 
   // Daily change: diff of the last two days in the historical market-value
   // series. Invested capital doesn't move day-to-day absent new trades, so
   // the day's profit change equals its market-value change.
-  const series = marketSeries.data ?? []
+  const series = marketSeriesData ?? []
   const last = series.at(-1)
   const previous = series.at(-2)
   const dailyChange =
@@ -88,12 +86,12 @@ export function TotalProfitCard() {
         {isLoading && (
           <p className="text-muted-foreground mt-3 text-sm">Loading…</p>
         )}
-        {error && (
+        {!!error && (
           <p className="text-destructive mt-3 text-sm">
             Failed to load holdings summary.
           </p>
         )}
-        {holdings.data && (
+        {holdingsData && (
           <>
             <p className="mt-3 flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-3xl font-semibold">
               <span className="whitespace-nowrap">{formatSigned(profit)}</span>
@@ -140,5 +138,56 @@ export function TotalProfitCard() {
         )}
       </CardContent>
     </Card>
+  )
+}
+
+export function TotalProfitCard() {
+  const { scopeParam } = useAccountScope()
+  const holdings = useQuery({
+    queryKey: ['holdings-summary', scopeParam],
+    queryFn: () => fetchHoldingsSummary(scopeParam!),
+    enabled: !!scopeParam,
+  })
+  const marketSeries = useQuery({
+    queryKey: ['market-value-series', scopeParam],
+    queryFn: () => fetchMarketValueSeries(scopeParam!),
+    enabled: !!scopeParam,
+  })
+
+  return (
+    <TotalProfitCardView
+      holdingsData={holdings.data}
+      marketSeriesData={marketSeries.data}
+      isLoading={holdings.isLoading}
+      error={holdings.error}
+    />
+  )
+}
+
+// Note: the daily-change sub-line stays whole-portfolio (unfiltered) here —
+// market-value-series/ShareDeltasForCurrentHoldings isn't extended to
+// accept an instrument filter in this pass. Only the primary profit figure
+// (from holdings-summary) reflects the Analytics category/asset selection.
+export function AnalyticsTotalProfitCard() {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  const holdings = useQuery({
+    queryKey: ['holdings-summary', scopeParam, resolvedInstrumentIds],
+    queryFn: () => fetchHoldingsSummary(scopeParam!, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+  })
+  const marketSeries = useQuery({
+    queryKey: ['market-value-series', scopeParam],
+    queryFn: () => fetchMarketValueSeries(scopeParam!),
+    enabled: !!scopeParam,
+  })
+
+  return (
+    <TotalProfitCardView
+      holdingsData={holdings.data}
+      marketSeriesData={marketSeries.data}
+      isLoading={holdings.isLoading}
+      error={holdings.error}
+    />
   )
 }

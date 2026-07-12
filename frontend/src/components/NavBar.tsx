@@ -1,4 +1,10 @@
-import { Coins, LayoutDashboard, Receipt, Settings } from 'lucide-react'
+import {
+  ChartNoAxesCombined,
+  Coins,
+  LayoutDashboard,
+  Receipt,
+  Settings,
+} from 'lucide-react'
 import { NavLink } from 'react-router-dom'
 import { AccountScopeSwitcher } from '@/components/AccountScopeSwitcher'
 import { ThemeToggle } from '@/components/ThemeToggle'
@@ -8,6 +14,7 @@ const LINKS = [
   { to: '/', label: 'Holdings', icon: LayoutDashboard, end: true },
   { to: '/dividends', label: 'Dividends', icon: Coins, end: false },
   { to: '/transactions', label: 'Transactions', icon: Receipt, end: false },
+  { to: '/analytics', label: 'Analytics', icon: ChartNoAxesCombined, end: false },
   { to: '/admin', label: 'Admin', icon: Settings, end: false },
 ] as const
 
