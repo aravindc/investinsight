@@ -10,7 +10,6 @@ import (
 	"go.uber.org/zap"
 
 	"investinsight/middleware/internal/marketprice"
-	"investinsight/middleware/internal/sector"
 	"investinsight/middleware/internal/xirr"
 )
 
@@ -127,7 +126,7 @@ func (s *SummaryService) SectorAllocations(ctx context.Context, scope Scope) ([]
 	var order []string
 
 	for _, h := range holdings {
-		name := sector.ForTicker(h.Ticker)
+		name := h.Sector
 		t, ok := byS[name]
 		if !ok {
 			t = &sectorTotals{fullyPriced: true}
@@ -181,7 +180,7 @@ func (s *SummaryService) AssetCategories(ctx context.Context, scope Scope) ([]As
 	byS := make(map[string]*AssetCategory)
 	var order []string
 	for _, h := range holdings {
-		name := sector.ForTicker(h.Ticker)
+		name := h.Sector
 		c, ok := byS[name]
 		if !ok {
 			c = &AssetCategory{Sector: name}

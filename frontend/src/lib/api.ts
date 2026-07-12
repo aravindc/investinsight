@@ -131,6 +131,18 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function patchNoContent(path: string, body: unknown): Promise<void> {
+  const res = await fetch(`/api${path}`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.error ?? `Request to ${path} failed: ${res.status}`)
+  }
+}
+
 export function fetchTransactions(scopeParam: string) {
   return fetchJson<PortfolioTransaction[]>('/transactions', { scope: scopeParam })
 }
@@ -230,4 +242,19 @@ export function fetchHouseholds() {
 
 export function createHousehold(name: string) {
   return postJson<Household>('/households', { name })
+}
+
+export type Instrument = {
+  id: string
+  ticker: string
+  name: string
+  sector: string
+}
+
+export function fetchInstruments() {
+  return fetchJson<Instrument[]>('/instruments')
+}
+
+export function updateInstrumentSector(instrumentId: string, sectorName: string) {
+  return patchNoContent(`/instruments/${instrumentId}/sector`, { sector: sectorName })
 }
