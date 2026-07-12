@@ -501,10 +501,11 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 	}
 
 	// Fetch FX rate history once per distinct non-GBP currency, instead of
-	// a live call per instrument-day.
+	// a live call per instrument-day. GBX (pence) and GBP (pounds) both
+	// need no FX lookup — see priceToGBP.
 	fxSeriesByCurrency := make(map[string]map[time.Time]float64)
 	for _, currency := range currencyByInstrument {
-		if currency == "" || currency == "GBP" {
+		if currency == "" || currency == "GBP" || currency == "GBX" {
 			continue
 		}
 		if _, ok := fxSeriesByCurrency[currency]; ok {
@@ -559,10 +560,14 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 }
 
 // priceToGBP converts a stored price to GBP for a given day: pence-based
-// division for GBP, or the day's FX rate for any other currency.
+// division for GBX, passthrough for GBP (already whole pounds), or the
+// day's FX rate for any other currency.
 func priceToGBP(p marketprice.StoredPrice, day time.Time, fxSeriesByCurrency map[string]map[time.Time]float64) (decimal.Decimal, bool) {
-	if p.Currency == "GBP" {
+	switch p.Currency {
+	case "GBX":
 		return p.Close.Div(decimal.NewFromInt(100)), true
+	case "GBP":
+		return p.Close, true
 	}
 
 	rate, ok := marketprice.FXRateOnOrBefore(fxSeriesByCurrency[p.Currency], day)
