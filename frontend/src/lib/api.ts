@@ -85,6 +85,7 @@ export type HoldingRow = {
   instrumentId: string
   ticker: string
   name: string
+  sector: string
   shares: string
   costBasisGbp: string
   costBasisPerShareGbp: string

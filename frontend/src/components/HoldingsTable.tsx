@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import {
   createColumnHelper,
@@ -9,7 +9,8 @@ import {
   useReactTable,
   type SortingState,
 } from '@tanstack/react-table'
-import { ArrowDown, ArrowUp, ArrowUpDown, Search, TrendingDown, TrendingUp } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, Search, TrendingDown, TrendingUp, X } from 'lucide-react'
+import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import {
@@ -168,7 +169,13 @@ const columns = [
   ),
 ]
 
-export function HoldingsTable() {
+export function HoldingsTable({
+  selectedSector = null,
+  onClearSector,
+}: {
+  selectedSector?: string | null
+  onClearSector?: () => void
+}) {
   const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
     queryKey: ['holdings-table', scopeParam],
@@ -181,13 +188,22 @@ export function HoldingsTable() {
   const [pagination, setPagination] = useState({ pageIndex: 0, pageSize: 10 })
 
   const filtered = useMemo(() => {
-    const rows = data ?? []
+    let rows = data ?? []
+    if (selectedSector) {
+      rows = rows.filter((r) => r.sector === selectedSector)
+    }
     const query = search.trim().toLowerCase()
-    if (!query) return rows
-    return rows.filter(
-      (r) => r.name.toLowerCase().includes(query) || r.ticker.toLowerCase().includes(query),
-    )
-  }, [data, search])
+    if (query) {
+      rows = rows.filter(
+        (r) => r.name.toLowerCase().includes(query) || r.ticker.toLowerCase().includes(query),
+      )
+    }
+    return rows
+  }, [data, search, selectedSector])
+
+  useEffect(() => {
+    setPagination((p) => ({ ...p, pageIndex: 0 }))
+  }, [selectedSector])
 
   const table = useReactTable({
     data: filtered,
@@ -203,7 +219,22 @@ export function HoldingsTable() {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between gap-4">
-        <CardTitle>Holdings</CardTitle>
+        <div className="flex items-center gap-2">
+          <CardTitle>Holdings</CardTitle>
+          {selectedSector && (
+            <Badge variant="secondary" className="gap-1">
+              {selectedSector}
+              <button
+                type="button"
+                onClick={onClearSector}
+                aria-label={`Clear ${selectedSector} filter`}
+                className="hover:text-foreground"
+              >
+                <X className="size-3" />
+              </button>
+            </Badge>
+          )}
+        </div>
         <div className="relative w-64">
           <Search className="text-muted-foreground absolute top-1/2 left-2.5 size-4 -translate-y-1/2" />
           <Input

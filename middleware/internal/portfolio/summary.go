@@ -246,6 +246,7 @@ func (s *SummaryService) HoldingsTable(ctx context.Context, scope Scope) ([]Hold
 			InstrumentID:         h.InstrumentID,
 			Ticker:               h.Ticker,
 			Name:                 h.Name,
+			Sector:               h.Sector,
 			Shares:               h.NetShares,
 			CostBasisGBP:         h.InvestedGBP.Round(2),
 			Priced:               h.Priced,
