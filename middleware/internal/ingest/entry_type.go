@@ -12,9 +12,16 @@ const (
 	EntryWithdrawal        EntryType = "WITHDRAWAL"
 	EntryInterest          EntryType = "INTEREST"
 	EntryStockDistribution EntryType = "STOCK_DISTRIBUTION"
-	EntryStockSplit        EntryType = "STOCK_SPLIT"
-	EntryAcquisition       EntryType = "ACQUISITION"
-	EntryUnknown           EntryType = "UNKNOWN"
+	// EntryStockSplitClose/EntryStockSplitOpen are the two ledger rows a
+	// broker emits per stock split event: "close" removes the pre-split
+	// share count, "open" adds the post-split share count. They must stay
+	// distinct (not collapsed into one STOCK_SPLIT type) because the
+	// direction differs — treating both as additive double-counts shares
+	// after a reverse split.
+	EntryStockSplitClose EntryType = "STOCK_SPLIT_CLOSE"
+	EntryStockSplitOpen  EntryType = "STOCK_SPLIT_OPEN"
+	EntryAcquisition     EntryType = "ACQUISITION"
+	EntryUnknown         EntryType = "UNKNOWN"
 )
 
 // MapAction normalizes broker-specific action text into system entry types.
@@ -35,8 +42,10 @@ func MapAction(brokerAction string) EntryType {
 		return EntryInterest
 	case strings.Contains(action, "stock distribution"):
 		return EntryStockDistribution
-	case strings.Contains(action, "stock split"):
-		return EntryStockSplit
+	case strings.Contains(action, "stock split close"):
+		return EntryStockSplitClose
+	case strings.Contains(action, "stock split open"):
+		return EntryStockSplitOpen
 	case strings.Contains(action, "acquisition"):
 		return EntryAcquisition
 	default:

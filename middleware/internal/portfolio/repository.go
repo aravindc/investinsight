@@ -63,7 +63,7 @@ type CurrentHolding struct {
 }
 
 // CurrentHoldings lists every instrument with net shares
-// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
+// (BUY/SELL/STOCK_SPLIT_OPEN/STOCK_SPLIT_CLOSE/STOCK_DISTRIBUTION/ACQUISITION) greater than zero,
 // i.e. still held today.
 func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Filter) ([]CurrentHolding, error) {
 	scopeFilter, scopeArg := buildScopeFilter(scope, "pt", 1)
@@ -81,7 +81,8 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 				CASE pt.entry_type
 					WHEN 'BUY' THEN pt.shares
 					WHEN 'SELL' THEN -pt.shares
-					WHEN 'STOCK_SPLIT' THEN pt.shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
+						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
 					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
 					WHEN 'ACQUISITION' THEN pt.shares
 					ELSE 0
@@ -102,7 +103,8 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 			CASE pt.entry_type
 				WHEN 'BUY' THEN pt.shares
 				WHEN 'SELL' THEN -pt.shares
-				WHEN 'STOCK_SPLIT' THEN pt.shares
+				WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
+						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
 				WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
 				WHEN 'ACQUISITION' THEN pt.shares
 				ELSE 0
@@ -134,7 +136,7 @@ type ShareDelta struct {
 }
 
 // ShareDeltasForCurrentHoldings returns every day with a share-count change
-// (BUY/SELL/STOCK_SPLIT/STOCK_DISTRIBUTION/ACQUISITION) for instruments
+// (BUY/SELL/STOCK_SPLIT_OPEN/STOCK_SPLIT_CLOSE/STOCK_DISTRIBUTION/ACQUISITION) for instruments
 // that are still held today, ordered by instrument then date. Callers
 // compute running per-instrument totals via a cumulative sum over this
 // list, then join against daily prices to reconstruct historical value.
@@ -147,7 +149,8 @@ func (r *Repository) ShareDeltasForCurrentHoldings(ctx context.Context, scope Sc
 				CASE pt.entry_type
 					WHEN 'BUY' THEN pt.shares
 					WHEN 'SELL' THEN -pt.shares
-					WHEN 'STOCK_SPLIT' THEN pt.shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN pt.shares
+						WHEN 'STOCK_SPLIT_CLOSE' THEN -pt.shares
 					WHEN 'STOCK_DISTRIBUTION' THEN pt.shares
 					WHEN 'ACQUISITION' THEN pt.shares
 					ELSE 0
@@ -164,7 +167,8 @@ func (r *Repository) ShareDeltasForCurrentHoldings(ctx context.Context, scope Sc
 				CASE entry_type
 					WHEN 'BUY' THEN shares
 					WHEN 'SELL' THEN -shares
-					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
 					WHEN 'STOCK_DISTRIBUTION' THEN shares
 					WHEN 'ACQUISITION' THEN shares
 					ELSE 0
@@ -490,7 +494,8 @@ func (r *Repository) InstrumentCashFlows(ctx context.Context, scope Scope) ([]In
 				CASE entry_type
 					WHEN 'BUY' THEN shares
 					WHEN 'SELL' THEN -shares
-					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
 					WHEN 'STOCK_DISTRIBUTION' THEN shares
 					WHEN 'ACQUISITION' THEN shares
 					ELSE 0
@@ -545,7 +550,8 @@ func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope, 
 				CASE entry_type
 					WHEN 'BUY' THEN shares
 					WHEN 'SELL' THEN -shares
-					WHEN 'STOCK_SPLIT' THEN shares
+					WHEN 'STOCK_SPLIT_OPEN' THEN shares
+					WHEN 'STOCK_SPLIT_CLOSE' THEN -shares
 					WHEN 'STOCK_DISTRIBUTION' THEN shares
 					WHEN 'ACQUISITION' THEN shares
 					ELSE 0

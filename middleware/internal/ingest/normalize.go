@@ -63,6 +63,16 @@ func NormalizeTransaction(raw RawSourceTransaction, instrumentID *uuid.UUID) (*N
 		totalImpactGBP = totalImpactGBP.Abs().Neg()
 	}
 
+	// STOCK_SPLIT_CLOSE/STOCK_SPLIT_OPEN/STOCK_DISTRIBUTION/ACQUISITION are pure share-count
+	// adjustments — no cash moves. The broker's "Total" column for these
+	// rows is the notional value of the shares being converted, not cash
+	// received or paid, so it must not be carried through as a real cash
+	// flow (it would otherwise inflate cost basis and distort IRR).
+	if !isAssetTrade(entryType) {
+		netAmountGBP = decimal.Zero
+		totalImpactGBP = decimal.Zero
+	}
+
 	return &NormalizedTransaction{
 		SourceID:           raw.ID,
 		InstrumentID:       instrumentID,
@@ -80,7 +90,19 @@ func NormalizeTransaction(raw RawSourceTransaction, instrumentID *uuid.UUID) (*N
 
 func isAssetEntry(entryType EntryType) bool {
 	switch entryType {
-	case EntryBuy, EntrySell, EntryDividend, EntryStockDistribution, EntryStockSplit, EntryAcquisition:
+	case EntryBuy, EntrySell, EntryDividend, EntryStockDistribution, EntryStockSplitClose, EntryStockSplitOpen, EntryAcquisition:
+		return true
+	default:
+		return false
+	}
+}
+
+// isAssetTrade reports whether entryType represents a genuine cash flow
+// (a purchase, sale, or dividend), as opposed to a non-cash share-count
+// adjustment (stock split, stock distribution, or acquisition swap).
+func isAssetTrade(entryType EntryType) bool {
+	switch entryType {
+	case EntryBuy, EntrySell, EntryDividend:
 		return true
 	default:
 		return false

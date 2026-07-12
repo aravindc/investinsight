@@ -151,8 +151,8 @@ close, currency, source), one row per instrument per trading day.
 - **Backfill**: `POST /api/market-prices/backfill` fetches history from
   scratch for instruments with no stored prices, or only the missing days
   for instruments that already have some, starting from each instrument's
-  earliest share-affecting event (BUY, SELL, STOCK_SPLIT,
-  STOCK_DISTRIBUTION, or ACQUISITION — not just BUY, since an instrument
+  earliest share-affecting event (BUY, SELL, STOCK_SPLIT_OPEN,
+  STOCK_SPLIT_CLOSE, STOCK_DISTRIBUTION, or ACQUISITION — not just BUY, since an instrument
   can be acquired purely via a corporate action like a spin-off). It is
   also safe to call repeatedly — already up-to-date instruments are
   skipped.

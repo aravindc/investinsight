@@ -31,11 +31,12 @@ type Instrument struct {
 }
 
 // InstrumentsNeedingPrices lists every instrument with at least one
-// share-affecting event (BUY, SELL, STOCK_SPLIT, STOCK_DISTRIBUTION,
-// ACQUISITION — matching how "currently held" is defined elsewhere), along
-// with the date of its earliest such event (the backfill start date). Using
-// only BUY here would miss instruments acquired purely via a corporate
-// action (e.g. a spin-off distribution with no direct purchase).
+// share-affecting event (BUY, SELL, STOCK_SPLIT_OPEN, STOCK_SPLIT_CLOSE,
+// STOCK_DISTRIBUTION, ACQUISITION — matching how "currently held" is
+// defined elsewhere), along with the date of its earliest such event (the
+// backfill start date). Using only BUY here would miss instruments
+// acquired purely via a corporate action (e.g. a spin-off distribution
+// with no direct purchase).
 func (r *Repository) InstrumentsNeedingPrices(ctx context.Context) ([]struct {
 	Instrument
 	FirstBuyDate time.Time
@@ -44,7 +45,7 @@ func (r *Repository) InstrumentsNeedingPrices(ctx context.Context) ([]struct {
 		SELECT i.id, i.ticker, i.base_currency, MIN(pt.timestamp)
 		FROM instruments i
 		JOIN portfolio_transactions pt ON pt.instrument_id = i.id
-		WHERE pt.entry_type IN ('BUY', 'SELL', 'STOCK_SPLIT', 'STOCK_DISTRIBUTION', 'ACQUISITION')
+		WHERE pt.entry_type IN ('BUY', 'SELL', 'STOCK_SPLIT_OPEN', 'STOCK_SPLIT_CLOSE', 'STOCK_DISTRIBUTION', 'ACQUISITION')
 		GROUP BY i.id, i.ticker, i.base_currency;`
 
 	rows, err := r.db.QueryContext(ctx, query)
