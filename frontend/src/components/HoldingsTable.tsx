@@ -143,14 +143,6 @@ const columns = [
       <span className="font-medium">{formatPercent(info.row.original.dividendYieldPercent)}</span>
     ),
   }),
-  columnHelper.accessor(
-    (row) => (row.dividendGrowthPercent === null ? null : Number(row.dividendGrowthPercent)),
-    {
-      id: 'dividendGrowth',
-      header: 'Dividend growth (5Y)',
-      cell: (info) => <SignedPercentCell percent={info.row.original.dividendGrowthPercent} />,
-    },
-  ),
   columnHelper.accessor((row) => (row.totalProfitGbp === null ? null : Number(row.totalProfitGbp)), {
     id: 'totalProfit',
     header: 'Total profit',
