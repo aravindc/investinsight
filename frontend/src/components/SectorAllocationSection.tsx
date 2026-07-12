@@ -11,7 +11,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { useAccountScope } from '@/lib/account-scope'
-import { fetchSectorAllocations, type SectorAllocation } from '@/lib/api'
+import { fetchHoldingsTable, fetchSectorAllocations, type SectorAllocation } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 import { colorForSector, iconForSector, MAX_SECTOR_SLICES } from '@/lib/sector'
 
@@ -21,28 +21,36 @@ const OUTER_RADIUS = '80%'
 const GUIDE_RADIUS = '84%'
 
 type Slice = {
-  sector: string
+  key: string
+  label: string
   investedGbp: number
+  color: string
 }
 
-// Collapses beyond the first (MAX_SECTOR_SLICES - 1) sectors into "Other" so the
+// Collapses beyond the first (MAX_SECTOR_SLICES - 1) slices into "Other" so the
 // pie never exceeds the validated categorical palette size.
-function capSlices(allocations: Slice[]): Slice[] {
-  if (allocations.length <= MAX_SECTOR_SLICES) return allocations
+function capSlices(slices: Slice[], otherColor: string): Slice[] {
+  if (slices.length <= MAX_SECTOR_SLICES) return slices
 
-  const kept = allocations.slice(0, MAX_SECTOR_SLICES - 1)
-  const overflow = allocations.slice(MAX_SECTOR_SLICES - 1)
-  const overflowTotal = overflow.reduce((sum, a) => sum + a.investedGbp, 0)
+  const kept = slices.slice(0, MAX_SECTOR_SLICES - 1)
+  const overflow = slices.slice(MAX_SECTOR_SLICES - 1)
+  const overflowTotal = overflow.reduce((sum, s) => sum + s.investedGbp, 0)
 
-  const existingOther = kept.find((a) => a.sector === 'Other')
+  const existingOther = kept.find((s) => s.label === 'Other')
   if (existingOther) {
     existingOther.investedGbp += overflowTotal
     return kept
   }
-  return [...kept, { sector: 'Other', investedGbp: overflowTotal }]
+  return [...kept, { key: 'other', label: 'Other', investedGbp: overflowTotal, color: otherColor }]
 }
 
-export function SectorAllocationSection() {
+export function SectorAllocationSection({
+  selectedSector,
+  onSelectSector,
+}: {
+  selectedSector: string | null
+  onSelectSector: (sector: string) => void
+}) {
   const { scopeParam } = useAccountScope()
   const { data, isLoading, error } = useQuery({
     queryKey: ['sector-allocations', scopeParam],
@@ -50,15 +58,42 @@ export function SectorAllocationSection() {
     enabled: !!scopeParam,
   })
 
+  // Shares the ['holdings-table', scopeParam] cache entry with HoldingsTable
+  // — only fetched once a sector is actually selected, and reuses the same
+  // network response either way (React Query dedupes by key).
+  const { data: holdingsData } = useQuery({
+    queryKey: ['holdings-table', scopeParam],
+    queryFn: () => fetchHoldingsTable(scopeParam!),
+    enabled: !!scopeParam && !!selectedSector,
+  })
+
   const allocations = data ?? []
 
   const slices = useMemo(() => {
+    if (selectedSector) {
+      const holdingsInSector = (holdingsData ?? []).filter((h) => h.sector === selectedSector)
+      const sectorColor = colorForSector(selectedSector)
+      const raw = holdingsInSector
+        .map((h, idx) => ({
+          key: h.instrumentId,
+          label: h.name,
+          investedGbp: Number(h.costBasisGbp),
+          // Distinct shades of the sector's color, cycling if there are
+          // more holdings than shades.
+          color: `color-mix(in srgb, ${sectorColor} ${100 - (idx % 5) * 15}%, var(--card))`,
+        }))
+        .sort((a, b) => b.investedGbp - a.investedGbp)
+      return capSlices(raw, sectorColor)
+    }
+
     const raw = allocations.map((a) => ({
-      sector: a.sector,
+      key: a.sector,
+      label: a.sector,
       investedGbp: Number(a.investedGbp),
+      color: colorForSector(a.sector),
     }))
-    return capSlices(raw)
-  }, [allocations])
+    return capSlices(raw, colorForSector('Other'))
+  }, [allocations, holdingsData, selectedSector])
 
   const total = slices.reduce((sum, s) => sum + s.investedGbp, 0)
   const grandTotalInvested = allocations.reduce(
@@ -70,7 +105,7 @@ export function SectorAllocationSection() {
     <div className="grid grid-cols-[1fr_2fr] gap-6">
       <Card>
         <CardHeader>
-          <CardTitle>Portfolio</CardTitle>
+          <CardTitle>{selectedSector ? selectedSector : 'Portfolio'}</CardTitle>
         </CardHeader>
         <CardContent className="h-88">
           {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
@@ -84,7 +119,7 @@ export function SectorAllocationSection() {
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={[{ sector: 'guide', investedGbp: 1 }]}
+                  data={[{ key: 'guide', investedGbp: 1 }]}
                   dataKey="investedGbp"
                   innerRadius={GUIDE_RADIUS}
                   outerRadius={GUIDE_RADIUS}
@@ -99,7 +134,7 @@ export function SectorAllocationSection() {
                 <Pie
                   data={slices}
                   dataKey="investedGbp"
-                  nameKey="sector"
+                  nameKey="label"
                   innerRadius={INNER_RADIUS}
                   outerRadius={OUTER_RADIUS}
                   cornerRadius={8}
@@ -107,13 +142,13 @@ export function SectorAllocationSection() {
                   stroke="none"
                 >
                   {slices.map((s) => (
-                    <Cell key={s.sector} fill={colorForSector(s.sector)} />
+                    <Cell key={s.key} fill={s.color} />
                   ))}
                 </Pie>
                 <Tooltip
                   formatter={(value, _name, item) => [
                     formatGbp(String(value)),
-                    `${item.payload.sector} (${((Number(value) / total) * 100).toFixed(0)}%)`,
+                    `${item.payload.label} (${((Number(value) / total) * 100).toFixed(0)}%)`,
                   ]}
                 />
               </PieChart>
@@ -156,6 +191,8 @@ export function SectorAllocationSection() {
                   <SectorRow
                     key={a.sector}
                     allocation={a}
+                    selected={a.sector === selectedSector}
+                    onSelect={() => onSelectSector(a.sector)}
                     shareOfPortfolio={
                       grandTotalInvested > 0
                         ? Number(a.investedGbp) / grandTotalInvested
@@ -174,9 +211,13 @@ export function SectorAllocationSection() {
 
 function SectorRow({
   allocation,
+  selected,
+  onSelect,
   shareOfPortfolio,
 }: {
   allocation: SectorAllocation
+  selected: boolean
+  onSelect: () => void
   shareOfPortfolio: number
 }) {
   const Icon = iconForSector(allocation.sector)
@@ -186,7 +227,11 @@ function SectorRow({
   const isGain = gain >= 0
 
   return (
-    <TableRow>
+    <TableRow
+      onClick={onSelect}
+      aria-selected={selected}
+      className={`cursor-pointer ${selected ? 'bg-accent' : ''}`}
+    >
       <TableCell className="relative pl-4">
         <span
           className="absolute top-2 bottom-2 left-1.5 w-1 rounded-full"

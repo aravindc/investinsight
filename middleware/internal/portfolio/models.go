@@ -111,6 +111,7 @@ type HoldingRow struct {
 	InstrumentID uuid.UUID `json:"instrumentId"`
 	Ticker       string    `json:"ticker"`
 	Name         string    `json:"name"`
+	Sector       string    `json:"sector"`
 
 	Shares decimal.Decimal `json:"shares"`
 
