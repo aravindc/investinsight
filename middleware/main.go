@@ -12,6 +12,7 @@ import (
 	"investinsight/middleware/internal/account"
 	"investinsight/middleware/internal/config"
 	"investinsight/middleware/internal/db"
+	"investinsight/middleware/internal/household"
 	"investinsight/middleware/internal/ingest"
 	appLogger "investinsight/middleware/internal/logger"
 	"investinsight/middleware/internal/marketprice"
@@ -73,6 +74,10 @@ func main() {
 	accountRepo := account.NewRepository(database)
 	accountHandler := account.NewHandler(accountRepo, logger)
 	accountHandler.RegisterRoutes(api)
+
+	householdRepo := household.NewRepository(database)
+	householdHandler := household.NewHandler(householdRepo, logger)
+	householdHandler.RegisterRoutes(api)
 
 	router.GET("/healthz", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})

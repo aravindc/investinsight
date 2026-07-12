@@ -29,6 +29,11 @@ export type Account = {
   name: string
 }
 
+export type Household = {
+  id: string
+  name: string
+}
+
 export type InvestedValuePoint = {
   date: string
   valueGbp: string
@@ -70,6 +75,19 @@ async function fetchJson<T>(path: string, params?: Record<string, string>): Prom
   const res = await fetch(`/api${path}${qs}`)
   if (!res.ok) {
     throw new Error(`Request to ${path} failed: ${res.status}`)
+  }
+  return res.json() as Promise<T>
+}
+
+async function postJson<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(`/api${path}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.error ?? `Request to ${path} failed: ${res.status}`)
   }
   return res.json() as Promise<T>
 }
@@ -136,4 +154,16 @@ export async function uploadCsv(file: File, hasHeader: boolean, accountId: strin
 
 export function fetchAccounts() {
   return fetchJson<Account[]>('/accounts')
+}
+
+export function createAccount(householdId: string, name: string) {
+  return postJson<Account>('/accounts', { householdId, name })
+}
+
+export function fetchHouseholds() {
+  return fetchJson<Household[]>('/households')
+}
+
+export function createHousehold(name: string) {
+  return postJson<Household>('/households', { name })
 }

@@ -42,3 +42,16 @@ func (r *Repository) List(ctx context.Context) ([]Account, error) {
 	}
 	return accounts, rows.Err()
 }
+
+// Create inserts a new account with the given name under householdID.
+func (r *Repository) Create(ctx context.Context, householdID uuid.UUID, name string) (*Account, error) {
+	a := &Account{HouseholdID: householdID, Name: name}
+	err := r.db.QueryRowContext(ctx, `
+		INSERT INTO accounts (household_id, name) VALUES ($1, $2) RETURNING id;`,
+		householdID, name,
+	).Scan(&a.ID)
+	if err != nil {
+		return nil, err
+	}
+	return a, nil
+}
