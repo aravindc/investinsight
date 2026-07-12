@@ -82,7 +82,7 @@ const columns = [
       const row = info.row.original
       return (
         <div className="flex items-center gap-3">
-          <InstrumentLogo ticker={row.ticker} />
+          <InstrumentLogo instrumentId={row.instrumentId} ticker={row.ticker} />
           <div>
             <div className="font-medium">{row.name}</div>
             <div className="text-muted-foreground text-xs">{row.ticker}</div>
