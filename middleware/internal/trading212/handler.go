@@ -124,6 +124,7 @@ func (h *Handler) disconnect(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to remove Trading 212 connection"})
 		return
 	}
+	h.service.ForgetSummary(accountID)
 	h.log.Info("trading 212 disconnected", zap.String("accountId", accountID.String()))
 	c.Status(http.StatusNoContent)
 }

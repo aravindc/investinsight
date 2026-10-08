@@ -13,9 +13,10 @@ import (
 )
 
 // summaryCacheTTL is how long a fetched account summary is reused for cash
-// figures. Trading 212 allows 1 summary request per 5s per account, and a
-// dashboard load (or a household of accounts) would otherwise exceed it.
-const summaryCacheTTL = 60 * time.Second
+// figures. Cash seldom changes, and Trading 212 allows only 1 summary
+// request per 5s per account. The entry is dropped early when the account
+// syncs or its key changes (see forget), and the response carries its age.
+const summaryCacheTTL = time.Hour
 
 // reconcileMaxAge lets Reconcile reuse a summary fetched moments ago (e.g.
 // by the dashboard) rather than tripping the 5s rate limit.
@@ -168,6 +169,18 @@ func (s *Service) Cash(ctx context.Context, scope CashScope) (*CashSummary, erro
 	out.CashGBP = out.CashGBP.Round(2)
 	out.CashInPiesGBP = out.CashInPiesGBP.Round(2)
 	return out, nil
+}
+
+func (c *summaryCache) forget(accountID uuid.UUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.entries, accountID)
+}
+
+// ForgetSummary drops the cached Trading 212 summary for accountID, so the
+// next cash request fetches fresh figures.
+func (s *Service) ForgetSummary(accountID uuid.UUID) {
+	s.summaries.forget(accountID)
 }
 
 func (c *summaryCache) fetchedAt(accountID uuid.UUID) (time.Time, bool) {

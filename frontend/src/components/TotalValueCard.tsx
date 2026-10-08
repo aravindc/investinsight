@@ -23,7 +23,9 @@ export function TotalValueCard() {
     queryKey: ['trading212-cash', scopeParam],
     queryFn: () => fetchTrading212Cash(scopeParam!),
     enabled: !!scopeParam,
-    staleTime: 60_000,
+    // The server caches Trading 212 cash for up to an hour; no need to
+    // re-ask it on every visit.
+    staleTime: 5 * 60_000,
   })
 
   const isLoading = holdings.isLoading || cash.isLoading
@@ -45,8 +47,9 @@ export function TotalValueCard() {
               <HelpCircle className="text-muted-foreground size-3.5" />
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
-              Investment value plus uninvested cash, including cash sitting in pies. Cash is
-              fetched live from Trading 212 for connected accounts.
+              Investment value plus uninvested cash, including cash sitting in pies. Cash comes
+              from Trading 212 for connected accounts, refreshed at most hourly and after each
+              sync.
             </TooltipContent>
           </Tooltip>
         </div>
@@ -61,6 +64,16 @@ export function TotalValueCard() {
             <p className="text-muted-foreground mt-1 text-sm">
               {formatGbp(Number(c.cashGbp) + Number(c.cashInPiesGbp))} cash
               {Number(c.cashInPiesGbp) !== 0 && <> ({formatGbp(c.cashInPiesGbp)} in pies)</>}
+              {c.oldestFetchedAt && (
+                <>
+                  {' '}
+                  · as of{' '}
+                  {new Date(c.oldestFetchedAt).toLocaleTimeString([], {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
+                </>
+              )}
             </p>
             {c.accountsExcluded.length > 0 && (
               <p className="text-destructive mt-1 text-xs">

@@ -36,4 +36,8 @@ func TestSummaryCache_MaxAge(t *testing.T) {
 	if _, ok := c.get(id, time.Millisecond); ok {
 		t.Fatal("stale entry returned")
 	}
+	c.forget(id)
+	if _, ok := c.get(id, time.Hour); ok {
+		t.Fatal("forgotten entry returned")
+	}
 }
