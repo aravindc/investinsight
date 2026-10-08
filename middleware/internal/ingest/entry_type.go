@@ -21,7 +21,10 @@ const (
 	EntryStockSplitClose EntryType = "STOCK_SPLIT_CLOSE"
 	EntryStockSplitOpen  EntryType = "STOCK_SPLIT_OPEN"
 	EntryAcquisition     EntryType = "ACQUISITION"
-	EntryUnknown         EntryType = "UNKNOWN"
+	// EntryFee is a broker charge levied against a holding (e.g. an ADR
+	// custody fee) — a cash outflow with no change in share count.
+	EntryFee     EntryType = "FEE"
+	EntryUnknown EntryType = "UNKNOWN"
 )
 
 // MapAction normalizes broker-specific action text into system entry types.
@@ -48,6 +51,8 @@ func MapAction(brokerAction string) EntryType {
 		return EntryStockSplitOpen
 	case strings.Contains(action, "acquisition"):
 		return EntryAcquisition
+	case strings.Contains(action, "fee"):
+		return EntryFee
 	default:
 		return EntryUnknown
 	}

@@ -73,6 +73,13 @@ func NormalizeTransaction(raw RawSourceTransaction, instrumentID *uuid.UUID) (*N
 		totalImpactGBP = decimal.Zero
 	}
 
+	// FEE rows are pure cash outflows: the whole total is the fee.
+	if entryType == EntryFee {
+		feesGBP = raw.Total.Abs()
+		netAmountGBP = feesGBP
+		totalImpactGBP = feesGBP.Neg()
+	}
+
 	return &NormalizedTransaction{
 		SourceID:           raw.ID,
 		InstrumentID:       instrumentID,
@@ -90,7 +97,7 @@ func NormalizeTransaction(raw RawSourceTransaction, instrumentID *uuid.UUID) (*N
 
 func isAssetEntry(entryType EntryType) bool {
 	switch entryType {
-	case EntryBuy, EntrySell, EntryDividend, EntryStockDistribution, EntryStockSplitClose, EntryStockSplitOpen, EntryAcquisition:
+	case EntryBuy, EntrySell, EntryDividend, EntryStockDistribution, EntryStockSplitClose, EntryStockSplitOpen, EntryAcquisition, EntryFee:
 		return true
 	default:
 		return false
