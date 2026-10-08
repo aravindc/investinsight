@@ -96,6 +96,7 @@ func (s *Service) Connect(ctx context.Context, accountID uuid.UUID, creds Creden
 	if err := s.repo.Upsert(ctx, accountID, keyEnc, secretEnc, keyHint(creds.APIKey), summary.ID, strings.ToUpper(summary.Currency)); err != nil {
 		return nil, err
 	}
+	s.summaries.set(accountID, summary) // a new key may point at a different T212 account
 	return s.repo.Get(ctx, accountID)
 }
 
@@ -192,6 +193,9 @@ func (s *Service) runSync(accountID uuid.UUID, creds Credentials, from time.Time
 	defer cancel()
 
 	log := s.logger.With(zap.String("accountId", accountID.String()))
+	// Whatever was imported (even by a sync that fails partway) may have
+	// moved cash, so drop the cached summary when the sync ends.
+	defer s.summaries.forget(accountID)
 	windows := exportWindows(from, time.Now().UTC(), exportWindow)
 	log.Info("trading 212 sync started", zap.Time("from", from), zap.Int("windows", len(windows)))
 
