@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -13,14 +14,29 @@ import (
 
 const liveWindowDays = 2 // "t-1 and t-0": always live-fetch the last 2 calendar days
 
+// liveCacheTTL bounds how long a live-fetched GBP close price is reused
+// across calls. Several endpoints (IRR, holdings-summary, sector-allocations,
+// holdings-table) each price every holding independently within the same
+// page load, so a short cache turns repeat lookups for the same instrument
+// into a map hit instead of another Yahoo round-trip.
+const liveCacheTTL = 60 * time.Second
+
+type liveCacheEntry struct {
+	price   decimal.Decimal
+	fetched time.Time
+}
+
 type Service struct {
 	repo   *Repository
 	yahoo  *YahooClient
 	logger *zap.Logger
+
+	liveCacheMu sync.Mutex
+	liveCache   map[uuid.UUID]liveCacheEntry
 }
 
 func NewService(repo *Repository, yahoo *YahooClient, logger *zap.Logger) *Service {
-	return &Service{repo: repo, yahoo: yahoo, logger: logger}
+	return &Service{repo: repo, yahoo: yahoo, logger: logger, liveCache: make(map[uuid.UUID]liveCacheEntry)}
 }
 
 // BackfillResult summarizes the outcome of a backfill run.
@@ -127,6 +143,10 @@ func (s *Service) ClosePriceGBP(ctx context.Context, inst Instrument, date time.
 	liveCutoff := now.AddDate(0, 0, -(liveWindowDays - 1))
 
 	if !date.Before(liveCutoff) {
+		if price, ok := s.liveCacheGet(inst.ID); ok {
+			return price, nil
+		}
+
 		closes, symbol, err := s.fetchDailyClosesWithFallback(ctx, inst, date.AddDate(0, 0, -7), now.AddDate(0, 0, 1))
 		if err != nil {
 			return decimal.Zero, fmt.Errorf("fetching live price for %s: %w", symbol, err)
@@ -137,7 +157,13 @@ func (s *Service) ClosePriceGBP(ctx context.Context, inst Instrument, date time.
 
 		latest := closes[len(closes)-1]
 		currency := normalizeCurrency(latest.Currency)
-		return s.ConvertToGBP(ctx, decimal.NewFromFloat(latest.Close), currency, date)
+		price, err := s.ConvertToGBP(ctx, decimal.NewFromFloat(latest.Close), currency, date)
+		if err != nil {
+			return decimal.Zero, err
+		}
+
+		s.liveCacheSet(inst.ID, price)
+		return price, nil
 	}
 
 	stored, err := s.repo.PriceOnOrBefore(ctx, inst.ID, date)
@@ -148,6 +174,24 @@ func (s *Service) ClosePriceGBP(ctx context.Context, inst Instrument, date time.
 		return decimal.Zero, fmt.Errorf("no stored price for instrument %s on or before %s", inst.ID, date.Format("2006-01-02"))
 	}
 	return s.ConvertToGBP(ctx, stored.Close, stored.Currency, date)
+}
+
+func (s *Service) liveCacheGet(instrumentID uuid.UUID) (decimal.Decimal, bool) {
+	s.liveCacheMu.Lock()
+	defer s.liveCacheMu.Unlock()
+
+	entry, ok := s.liveCache[instrumentID]
+	if !ok || time.Since(entry.fetched) > liveCacheTTL {
+		return decimal.Zero, false
+	}
+	return entry.price, true
+}
+
+func (s *Service) liveCacheSet(instrumentID uuid.UUID, price decimal.Decimal) {
+	s.liveCacheMu.Lock()
+	defer s.liveCacheMu.Unlock()
+
+	s.liveCache[instrumentID] = liveCacheEntry{price: price, fetched: time.Now()}
 }
 
 // normalizeCurrency preserves the pence-vs-pounds distinction Yahoo
