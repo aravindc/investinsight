@@ -359,3 +359,42 @@ export type Trading212Cash = {
 export function fetchTrading212Cash(scopeParam: string) {
   return fetchJson<Trading212Cash>('/trading212/cash', { scope: scopeParam })
 }
+
+export type CashIsa = {
+  accountId: string
+  accountName: string
+  /** The balance as entered, on balanceDate (before interest since). */
+  balanceGbp: string
+  balanceDate: string
+  /** Balance plus interest credited at each completed month end. */
+  valueGbp: string
+  accruedThisMonthGbp: string
+  interestCreditedGbp: string
+  currentRatePercent: string
+  nextCreditDate: string
+  rates: { effectiveFrom: string; ratePercent: string }[]
+}
+
+export type CashIsaSummary = {
+  totalValueGbp: string
+  totalAccruedThisMonthGbp: string
+  asOf: string
+  cashIsas: CashIsa[]
+}
+
+/** Cash ISAs in scope; omit scopeParam for every account. */
+export function fetchCashIsas(scopeParam?: string) {
+  return fetchJson<CashIsaSummary>('/cash-isas', scopeParam ? { scope: scopeParam } : undefined)
+}
+
+export async function saveCashIsa(accountId: string, balance: string, balanceDate: string, ratePercent: string) {
+  await sendJson<void>('PUT', `/accounts/${accountId}/cash-isa`, { balance, balanceDate, ratePercent })
+}
+
+export async function setCashIsaRate(accountId: string, ratePercent: string, effectiveFrom: string) {
+  await sendJson<void>('POST', `/accounts/${accountId}/cash-isa/rates`, { ratePercent, effectiveFrom })
+}
+
+export async function deleteCashIsa(accountId: string) {
+  await sendJson<void>('DELETE', `/accounts/${accountId}/cash-isa`)
+}
