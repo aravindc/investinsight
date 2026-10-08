@@ -52,7 +52,7 @@ func main() {
 
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:5173"},
+		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
 	}))
 	router.Use(requestLogger(logger))
