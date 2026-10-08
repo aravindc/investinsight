@@ -259,3 +259,53 @@ export function fetchInstruments() {
 export function updateInstrumentSector(instrumentId: string, sectorName: string) {
   return patchNoContent(`/instruments/${instrumentId}/sector`, { sector: sectorName })
 }
+
+export type Trading212SyncStatus = 'idle' | 'running' | 'succeeded' | 'failed'
+
+/** An account's Trading 212 link. The API key/secret are never returned. */
+export type Trading212Connection = {
+  accountId: string
+  keyHint: string
+  t212AccountId: number | null
+  currency: string | null
+  updatedAt: string
+  syncStatus: Trading212SyncStatus
+  syncMessage: string | null
+  syncStartedAt: string | null
+  syncFinishedAt: string | null
+  syncedThrough: string | null
+  lastInserted: number
+  lastDuplicate: number
+}
+
+async function sendJson<T>(method: 'PUT' | 'POST' | 'DELETE', path: string, body?: unknown): Promise<T | null> {
+  const res = await fetch(`/api${path}`, {
+    method,
+    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.error ?? `Request to ${path} failed: ${res.status}`)
+  }
+  return res.status === 204 ? null : (res.json() as Promise<T>)
+}
+
+export function fetchTrading212Connections() {
+  return fetchJson<Trading212Connection[]>('/trading212/connections')
+}
+
+export async function connectTrading212(accountId: string, apiKey: string, apiSecret: string) {
+  return (await sendJson<Trading212Connection>('PUT', `/accounts/${accountId}/trading212`, {
+    apiKey,
+    apiSecret,
+  }))!
+}
+
+export async function disconnectTrading212(accountId: string) {
+  await sendJson<void>('DELETE', `/accounts/${accountId}/trading212`)
+}
+
+export async function syncTrading212(accountId: string) {
+  await sendJson<{ status: string }>('POST', `/accounts/${accountId}/trading212/sync`)
+}

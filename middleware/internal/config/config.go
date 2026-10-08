@@ -21,21 +21,27 @@ type Config struct {
 	// Browsers send an Origin header on same-origin POST/PUT/DELETE too, so
 	// the origin the app is served from must be listed here.
 	CORSAllowedOrigins []string
+	// CredentialsEncryptionKey (base64, 32 bytes) encrypts stored broker API
+	// credentials. Empty disables storing them.
+	CredentialsEncryptionKey string
+	Trading212BaseURL        string
 }
 
 func Load() (*Config, error) {
 	_ = godotenv.Load()
 
 	cfg := &Config{
-		AppPort:            getEnv("APP_PORT", "3000"),
-		DBHost:             os.Getenv("DB_HOST"),
-		DBPort:             getEnv("DB_PORT", "5432"),
-		DBUser:             os.Getenv("DB_USER"),
-		DBPassword:         os.Getenv("DB_PASSWORD"),
-		DBName:             os.Getenv("DB_NAME"),
-		DBSSLMode:          getEnv("DB_SSLMODE", "disable"),
-		LogoDevToken:       os.Getenv("LOGO_DEV_API_KEY"),
-		CORSAllowedOrigins: splitList(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")),
+		AppPort:                  getEnv("APP_PORT", "3000"),
+		DBHost:                   os.Getenv("DB_HOST"),
+		DBPort:                   getEnv("DB_PORT", "5432"),
+		DBUser:                   os.Getenv("DB_USER"),
+		DBPassword:               os.Getenv("DB_PASSWORD"),
+		DBName:                   os.Getenv("DB_NAME"),
+		DBSSLMode:                getEnv("DB_SSLMODE", "disable"),
+		LogoDevToken:             os.Getenv("LOGO_DEV_API_KEY"),
+		CORSAllowedOrigins:       splitList(getEnv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")),
+		CredentialsEncryptionKey: os.Getenv("CREDENTIALS_ENCRYPTION_KEY"),
+		Trading212BaseURL:        getEnv("TRADING212_BASE_URL", "https://live.trading212.com"),
 	}
 
 	if cfg.DBHost == "" || cfg.DBUser == "" || cfg.DBName == "" {
