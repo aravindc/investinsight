@@ -21,3 +21,4 @@ middleware/bin/
 
 wip.*
 csv_loader/
+gbx2gbp/*.csv
