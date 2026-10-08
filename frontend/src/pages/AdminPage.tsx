@@ -9,9 +9,12 @@ export function AdminPage() {
     <div className="space-y-6">
       <HouseholdAccountCard />
       <CsvUploadCard />
-      <MarketPriceBackfillCard />
-      <LogoBackfillCard />
+          <div className="grid grid-cols-2 space-x-6">
+            <MarketPriceBackfillCard />
+            <LogoBackfillCard />
+          </div>
       <InstrumentSectorCard />
     </div>
+
   )
 }
