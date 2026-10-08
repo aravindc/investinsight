@@ -40,11 +40,14 @@ const (
 var defaultSyncStart = time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
 
 type Service struct {
-	repo   *Repository
-	client *Client
-	cipher *Cipher
-	engine *ingest.Engine
-	logger *zap.Logger
+	repo     *Repository
+	client   *Client
+	cipher   *Cipher
+	engine   *ingest.Engine
+	holdings HoldingsSummarizer
+	logger   *zap.Logger
+
+	summaries summaryCache
 
 	// Minimum gaps between calls, from Trading 212's rate limits. Fields
 	// (not constants) so tests can shrink them.
@@ -52,12 +55,13 @@ type Service struct {
 	listExportsInterval   time.Duration
 }
 
-func NewService(repo *Repository, client *Client, cipher *Cipher, engine *ingest.Engine, logger *zap.Logger) *Service {
+func NewService(repo *Repository, client *Client, cipher *Cipher, engine *ingest.Engine, holdings HoldingsSummarizer, logger *zap.Logger) *Service {
 	return &Service{
 		repo:                  repo,
 		client:                client,
 		cipher:                cipher,
 		engine:                engine,
+		holdings:              holdings,
 		logger:                logger,
 		requestExportInterval: 31 * time.Second,
 		listExportsInterval:   61 * time.Second,

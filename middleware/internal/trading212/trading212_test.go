@@ -160,7 +160,7 @@ func TestClient_AccountSummary(t *testing.T) {
 func TestService_ExportWindow(t *testing.T) {
 	srv, exportRequests := fakeT212(t, true)
 	client, _ := NewClient(srv.URL)
-	s := NewService(nil, client, nil, nil, zap.NewNop())
+	s := NewService(nil, client, nil, nil, nil, zap.NewNop())
 	s.requestExportInterval = time.Millisecond
 	s.listExportsInterval = time.Millisecond
 

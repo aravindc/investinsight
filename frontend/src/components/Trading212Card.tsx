@@ -1,20 +1,31 @@
 import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { RefreshCw } from 'lucide-react'
+import { RefreshCw, Scale } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from '@/components/ui/table'
 import {
   connectTrading212,
   disconnectTrading212,
   fetchAccounts,
   fetchHouseholds,
   fetchTrading212Connections,
+  fetchTrading212Reconciliation,
   syncTrading212,
   type Account,
   type Trading212Connection,
+  type Trading212Reconciliation,
 } from '@/lib/api'
+import { formatGbp } from '@/lib/format'
 
 const CONNECTIONS_KEY = ['trading212-connections']
 
@@ -114,9 +125,12 @@ function AccountRow({
     mutationFn: () => syncTrading212(account.id),
     onSettled: refresh,
   })
+  const reconcile = useMutation({
+    mutationFn: () => fetchTrading212Reconciliation(account.id),
+  })
 
   const running = connection?.syncStatus === 'running'
-  const error = connect.error ?? disconnect.error ?? sync.error
+  const error = connect.error ?? disconnect.error ?? sync.error ?? reconcile.error
 
   return (
     <div className="space-y-3 py-4 first:pt-0 last:pb-0">
@@ -140,6 +154,17 @@ function AccountRow({
             <Button size="sm" onClick={() => sync.mutate()} disabled={running || sync.isPending}>
               <RefreshCw className={running ? 'size-4 animate-spin' : 'size-4'} />
               {running ? 'Syncing…' : 'Sync now'}
+            </Button>
+          )}
+          {connection && (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => reconcile.mutate()}
+              disabled={running || reconcile.isPending}
+            >
+              <Scale className="size-4" />
+              {reconcile.isPending ? 'Checking…' : 'Reconcile'}
             </Button>
           )}
           <Button size="sm" variant="outline" onClick={() => setEditing((v) => !v)} disabled={running}>
@@ -216,11 +241,84 @@ function AccountRow({
         </div>
       )}
 
+      {connection && reconcile.data && !reconcile.isPending && (
+        <ReconciliationView data={reconcile.data} />
+      )}
+
       {error && (
         <p className="text-destructive text-sm">
           {error instanceof Error ? error.message : 'Something went wrong.'}
         </p>
       )}
+    </div>
+  )
+}
+
+function signedGbp(value: string) {
+  const n = Number(value)
+  return (n > 0 ? '+' : '') + formatGbp(n)
+}
+
+function ReconciliationView({ data }: { data: Trading212Reconciliation }) {
+  const allMatch = data.lines.every((l) => l.matches)
+  const info = data.trading212Info
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm font-medium">
+          Reconciliation with Trading 212 #{data.t212AccountId}
+        </p>
+        <Badge variant={allMatch ? 'secondary' : 'destructive'}>
+          {allMatch ? 'All within tolerance' : 'Differences found'}
+        </Badge>
+      </div>
+
+      <div className="overflow-x-auto">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead />
+              <TableHead className="text-right">Trading 212</TableHead>
+              <TableHead className="text-right">InvestInsight</TableHead>
+              <TableHead className="text-right">Difference</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.lines.map((l) => (
+              <TableRow key={l.key}>
+                <TableCell>{l.label}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatGbp(l.trading212)}</TableCell>
+                <TableCell className="text-right tabular-nums">{formatGbp(l.app)}</TableCell>
+                <TableCell
+                  className={`text-right tabular-nums ${l.matches ? 'text-muted-foreground' : 'text-destructive font-medium'}`}
+                >
+                  {signedGbp(l.difference)}
+                  {l.differencePercent !== null && ` (${Number(l.differencePercent) > 0 ? '+' : ''}${l.differencePercent}%)`}
+                </TableCell>
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {data.unpricedHoldings > 0 && (
+        <p className="text-destructive text-sm">
+          {data.unpricedHoldings} holding{data.unpricedHoldings === 1 ? '' : 's'} couldn't be
+          priced, so InvestInsight's investments value is understated. Run the market price
+          backfill and reconcile again.
+        </p>
+      )}
+
+      <p className="text-muted-foreground text-xs">
+        Figures within {data.tolerancePercent}% count as matching: Trading 212 prices in real
+        time, InvestInsight from the latest Yahoo close. Trading 212 also reports (not tracked
+        here): cash {formatGbp(info.cashAvailable)}
+        {Number(info.cashInPies) !== 0 && <>, cash in pies {formatGbp(info.cashInPies)}</>}
+        {Number(info.cashReserved) !== 0 && <>, reserved for orders {formatGbp(info.cashReserved)}</>}
+        , realised P/L {signedGbp(info.realizedProfitLoss)}, total value {formatGbp(info.totalValue)}.
+        Checked {new Date(data.fetchedAt).toLocaleString()}.
+      </p>
     </div>
   )
 }

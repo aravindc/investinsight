@@ -11,6 +11,7 @@ export type PortfolioTransaction = {
 export type HoldingsSummary = {
   investedValueGbp: string
   marketValueGbp: string
+  unpricedHoldings: number
 }
 
 export type DividendsSummary = {
@@ -308,4 +309,53 @@ export async function disconnectTrading212(accountId: string) {
 
 export async function syncTrading212(accountId: string) {
   await sendJson<{ status: string }>('POST', `/accounts/${accountId}/trading212/sync`)
+}
+
+export type ReconciliationLine = {
+  key: string
+  label: string
+  trading212: string
+  app: string
+  /** app − Trading 212 */
+  difference: string
+  differencePercent: string | null
+  matches: boolean
+}
+
+export type Trading212Reconciliation = {
+  accountId: string
+  t212AccountId: number
+  currency: string
+  fetchedAt: string
+  tolerancePercent: string
+  lines: ReconciliationLine[]
+  unpricedHoldings: number
+  trading212Info: {
+    totalValue: string
+    cashAvailable: string
+    cashInPies: string
+    cashReserved: string
+    realizedProfitLoss: string
+  }
+}
+
+export async function fetchTrading212Reconciliation(accountId: string) {
+  const res = await fetch(`/api/accounts/${accountId}/trading212/reconciliation`)
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.error ?? `Reconciliation failed: ${res.status}`)
+  }
+  return res.json() as Promise<Trading212Reconciliation>
+}
+
+export type Trading212Cash = {
+  cashGbp: string
+  cashInPiesGbp: string
+  accountsIncluded: number
+  accountsExcluded: { accountId: string; name: string; reason: string }[]
+  oldestFetchedAt: string | null
+}
+
+export function fetchTrading212Cash(scopeParam: string) {
+  return fetchJson<Trading212Cash>('/trading212/cash', { scope: scopeParam })
 }

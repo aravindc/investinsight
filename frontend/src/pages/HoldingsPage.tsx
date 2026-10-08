@@ -5,6 +5,7 @@ import { IrrCard } from '@/components/IrrCard'
 import { PassiveIncomeCard } from '@/components/PassiveIncomeCard'
 import { SectorAllocationSection } from '@/components/SectorAllocationSection'
 import { TotalProfitCard } from '@/components/TotalProfitCard'
+import { TotalValueCard } from '@/components/TotalValueCard'
 import { ValueCard } from '@/components/ValueCard'
 
 export function HoldingsPage() {
@@ -12,7 +13,8 @@ export function HoldingsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-6">
+      <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+        <TotalValueCard />
         <ValueCard />
         <TotalProfitCard />
         <IrrCard />

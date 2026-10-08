@@ -110,16 +110,20 @@ func (s *SummaryService) HoldingsSummary(ctx context.Context, scope Scope, filte
 
 	invested := decimal.Zero
 	marketValue := decimal.Zero
+	unpriced := 0
 	for _, h := range holdings {
 		invested = invested.Add(h.InvestedGBP)
 		if h.Priced {
 			marketValue = marketValue.Add(h.MarketValueGBP)
+		} else {
+			unpriced++
 		}
 	}
 
 	return &HoldingsSummary{
 		InvestedValueGBP: invested.Round(2),
 		MarketValueGBP:   marketValue.Round(2),
+		UnpricedHoldings: unpriced,
 	}, nil
 }
 

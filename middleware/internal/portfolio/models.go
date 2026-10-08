@@ -30,6 +30,9 @@ type ValuePoint struct {
 type HoldingsSummary struct {
 	InvestedValueGBP decimal.Decimal `json:"investedValueGbp"`
 	MarketValueGBP   decimal.Decimal `json:"marketValueGbp"`
+	// UnpricedHoldings counts holdings left out of MarketValueGBP because
+	// no price could be fetched.
+	UnpricedHoldings int `json:"unpricedHoldings"`
 }
 
 // DividendsSummary reports total dividend income received to date.

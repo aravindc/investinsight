@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // Credentials are a Trading 212 API key/secret pair, sent as HTTP Basic auth.
@@ -39,10 +41,23 @@ func NewClient(baseURL string) (*Client, error) {
 	return &Client{baseURL: u, httpClient: &http.Client{Timeout: 60 * time.Second}}, nil
 }
 
-// AccountSummary is the subset of GET /equity/account/summary sync uses.
+// AccountSummary is GET /equity/account/summary. Amounts are in the
+// account's primary currency.
 type AccountSummary struct {
-	ID       int64  `json:"id"`
-	Currency string `json:"currency"`
+	ID         int64           `json:"id"`
+	Currency   string          `json:"currency"`
+	TotalValue decimal.Decimal `json:"totalValue"`
+	Cash       struct {
+		AvailableToTrade  decimal.Decimal `json:"availableToTrade"`
+		InPies            decimal.Decimal `json:"inPies"`
+		ReservedForOrders decimal.Decimal `json:"reservedForOrders"`
+	} `json:"cash"`
+	Investments struct {
+		CurrentValue         decimal.Decimal `json:"currentValue"`
+		TotalCost            decimal.Decimal `json:"totalCost"`
+		RealizedProfitLoss   decimal.Decimal `json:"realizedProfitLoss"`
+		UnrealizedProfitLoss decimal.Decimal `json:"unrealizedProfitLoss"`
+	} `json:"investments"`
 }
 
 // Report is one entry of GET /equity/history/exports.
