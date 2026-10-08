@@ -1,3 +1,4 @@
+import { CashIsaAdminCard } from '@/components/CashIsaAdminCard'
 import { CsvUploadCard } from '@/components/CsvUploadCard'
 import { HouseholdAccountCard } from '@/components/HouseholdAccountCard'
 import { InstrumentSectorCard } from '@/components/InstrumentSectorCard'
@@ -10,6 +11,7 @@ export function AdminPage() {
     <div className="space-y-6">
       <HouseholdAccountCard />
       <Trading212Card />
+      <CashIsaAdminCard />
       <CsvUploadCard />
       <div className="grid gap-6 md:grid-cols-2">
         <MarketPriceBackfillCard />

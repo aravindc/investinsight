@@ -11,6 +11,7 @@ import (
 	"go.uber.org/zap"
 
 	"investinsight/middleware/internal/account"
+	"investinsight/middleware/internal/cashisa"
 	"investinsight/middleware/internal/config"
 	"investinsight/middleware/internal/db"
 	"investinsight/middleware/internal/household"
@@ -107,6 +108,10 @@ func main() {
 	t212Service := trading212.NewService(t212Repo, t212Client, credentialsCipher, ingestEngine, summaryService, logger)
 	t212Handler := trading212.NewHandler(t212Repo, t212Service, logger)
 	t212Handler.RegisterRoutes(api)
+
+	cashISARepo := cashisa.NewRepository(database)
+	cashISAHandler := cashisa.NewHandler(cashISARepo, logger)
+	cashISAHandler.RegisterRoutes(api)
 
 	instrumentRepo := instrument.NewRepository(database)
 	instrumentHandler := instrument.NewHandler(instrumentRepo, logger)
