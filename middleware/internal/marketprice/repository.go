@@ -28,6 +28,7 @@ type Instrument struct {
 	ID           uuid.UUID
 	Ticker       string
 	BaseCurrency string
+	ISIN         string
 }
 
 // InstrumentsNeedingPrices lists every instrument with at least one
@@ -42,11 +43,11 @@ func (r *Repository) InstrumentsNeedingPrices(ctx context.Context) ([]struct {
 	FirstBuyDate time.Time
 }, error) {
 	query := `
-		SELECT i.id, i.ticker, i.base_currency, MIN(pt.timestamp)
+		SELECT i.id, i.ticker, i.base_currency, i.isin, MIN(pt.timestamp)
 		FROM instruments i
 		JOIN portfolio_transactions pt ON pt.instrument_id = i.id
 		WHERE pt.entry_type IN ('BUY', 'SELL', 'STOCK_SPLIT_OPEN', 'STOCK_SPLIT_CLOSE', 'STOCK_DISTRIBUTION', 'ACQUISITION')
-		GROUP BY i.id, i.ticker, i.base_currency;`
+		GROUP BY i.id, i.ticker, i.base_currency, i.isin;`
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -63,7 +64,7 @@ func (r *Repository) InstrumentsNeedingPrices(ctx context.Context) ([]struct {
 			Instrument
 			FirstBuyDate time.Time
 		}
-		if err := rows.Scan(&item.ID, &item.Ticker, &item.BaseCurrency, &item.FirstBuyDate); err != nil {
+		if err := rows.Scan(&item.ID, &item.Ticker, &item.BaseCurrency, &item.ISIN, &item.FirstBuyDate); err != nil {
 			return nil, err
 		}
 		results = append(results, item)

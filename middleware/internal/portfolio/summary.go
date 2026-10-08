@@ -77,6 +77,7 @@ func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope, filter
 				ID:           h.InstrumentID,
 				Ticker:       h.Ticker,
 				BaseCurrency: h.BaseCurrency,
+				ISIN:         h.ISIN,
 			}, today)
 			if err != nil {
 				s.logger.Warn("failed to price holding, excluding from market value",

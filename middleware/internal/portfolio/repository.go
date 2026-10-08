@@ -58,6 +58,7 @@ type CurrentHolding struct {
 	Ticker       string
 	Name         string
 	BaseCurrency string
+	ISIN         string
 	Sector       string
 	NetShares    decimal.Decimal
 	InvestedGBP  decimal.Decimal
@@ -70,6 +71,7 @@ type instrumentLedgerRow struct {
 	Ticker       string
 	Name         string
 	BaseCurrency string
+	ISIN         string
 	Sector       string
 	EntryType    string
 	Timestamp    time.Time
@@ -98,7 +100,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 
 	query := fmt.Sprintf(`
 		SELECT
-			i.id, i.ticker, i.name, i.base_currency, i.sector,
+			i.id, i.ticker, i.name, i.base_currency, i.isin, i.sector,
 			pt.entry_type, pt.timestamp, pt.shares, pt.net_amount_gbp
 		FROM portfolio_transactions pt
 		JOIN instruments i ON i.id = pt.instrument_id
@@ -115,7 +117,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	var ledger []instrumentLedgerRow
 	for rows.Next() {
 		var l instrumentLedgerRow
-		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.Sector, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
+		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.ISIN, &l.Sector, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
 			return nil, err
 		}
 		ledger = append(ledger, l)
@@ -148,6 +150,7 @@ func poolCurrentHoldings(ledger []instrumentLedgerRow) []CurrentHolding {
 				Ticker:       l.Ticker,
 				Name:         l.Name,
 				BaseCurrency: l.BaseCurrency,
+				ISIN:         l.ISIN,
 				Sector:       l.Sector,
 			}}
 			pools[l.InstrumentID] = p

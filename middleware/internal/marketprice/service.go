@@ -104,7 +104,7 @@ func (s *Service) fetchAndStore(ctx context.Context, inst Instrument, from, to t
 // resolvable on Yahoo as "<ticker>.L") without needing a manual per-ticker
 // exchange mapping.
 func (s *Service) fetchDailyClosesWithFallback(ctx context.Context, inst Instrument, from, to time.Time) ([]DailyClose, string, error) {
-	symbol := YahooSymbol(inst.Ticker, inst.BaseCurrency)
+	symbol := YahooSymbol(inst.Ticker, inst.BaseCurrency, inst.ISIN)
 
 	closes, err := s.yahoo.FetchDailyCloses(ctx, symbol, from, to)
 	if err == nil && len(closes) > 0 {
@@ -124,10 +124,17 @@ func (s *Service) fetchDailyClosesWithFallback(ctx context.Context, inst Instrum
 		return lseCloses, lseSymbol, nil
 	}
 
-	if err != nil {
-		return nil, symbol, fmt.Errorf("fetching %s: %w", symbol, err)
+	// Neither returned closes. A symbol that resolved without error simply
+	// has no new trading days in the range (e.g. an incremental backfill
+	// asking only for today, whose close isn't published yet) — that's "up
+	// to date", not a failure.
+	if err == nil {
+		return closes, symbol, nil
 	}
-	return closes, symbol, nil
+	if lseErr == nil {
+		return lseCloses, lseSymbol, nil
+	}
+	return nil, symbol, fmt.Errorf("fetching %s: %w; fallback %s: %v", symbol, err, lseSymbol, lseErr)
 }
 
 // ClosePriceGBP returns the closing price for instrument on date, converted
