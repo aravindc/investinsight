@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"time"
@@ -91,8 +92,18 @@ func main() {
 	instrumentHandler := instrument.NewHandler(instrumentRepo, logger)
 	instrumentHandler.RegisterRoutes(api)
 
+	// Liveness + readiness: reports unhealthy if the database is unreachable,
+	// so Docker's healthcheck reflects whether the API can actually serve.
 	router.GET("/healthz", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{"status": "ok"})
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 2*time.Second)
+		defer cancel()
+
+		if err := database.PingContext(ctx); err != nil {
+			logger.Warn("health check: database unreachable", zap.Error(err))
+			c.JSON(http.StatusServiceUnavailable, gin.H{"status": "unhealthy", "database": "unreachable"})
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"status": "ok", "database": "ok"})
 	})
 
 	addr := ":" + cfg.AppPort
