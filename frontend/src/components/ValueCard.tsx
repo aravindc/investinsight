@@ -27,7 +27,7 @@ function ValueCardView({
           <span className="bg-primary/10 text-primary flex size-8 items-center justify-center rounded-md">
             <Wallet className="size-4" />
           </span>
-          <span className="text-sm font-medium">Value</span>
+          <span className="text-sm font-medium">Investment value</span>
           <Tooltip>
             <TooltipTrigger asChild>
               <HelpCircle className="text-muted-foreground size-3.5" />
