@@ -3,6 +3,7 @@ package portfolio
 import (
 	"context"
 	"sort"
+	"sync"
 	"time"
 
 	"github.com/google/uuid"
@@ -12,6 +13,13 @@ import (
 	"investinsight/middleware/internal/marketprice"
 	"investinsight/middleware/internal/xirr"
 )
+
+// pricingConcurrency bounds how many instruments are priced at once in
+// pricedHoldings. Each price lookup for "today" is a live Yahoo Finance HTTP
+// call (see marketprice.Service.ClosePriceGBP), so pricing holdings one at a
+// time serializes dozens of network round-trips; a worker pool keeps this
+// bounded rather than firing unlimited concurrent requests at Yahoo.
+const pricingConcurrency = 16
 
 // PriceLookup resolves current and historical instrument prices in GBP,
 // implemented by *marketprice.Service.
@@ -54,27 +62,37 @@ func (s *SummaryService) pricedHoldings(ctx context.Context, scope Scope, filter
 	}
 
 	today := time.Now().UTC()
-	priced := make([]pricedHolding, 0, len(holdings))
+	priced := make([]pricedHolding, len(holdings))
 
-	for _, h := range holdings {
-		price, err := s.prices.ClosePriceGBP(ctx, marketprice.Instrument{
-			ID:           h.InstrumentID,
-			Ticker:       h.Ticker,
-			BaseCurrency: h.BaseCurrency,
-		}, today)
-		if err != nil {
-			s.logger.Warn("failed to price holding, excluding from market value",
-				zap.String("ticker", h.Ticker), zap.Error(err))
-			priced = append(priced, pricedHolding{CurrentHolding: h})
-			continue
-		}
+	sem := make(chan struct{}, pricingConcurrency)
+	var wg sync.WaitGroup
+	for i, h := range holdings {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(i int, h CurrentHolding) {
+			defer wg.Done()
+			defer func() { <-sem }()
 
-		priced = append(priced, pricedHolding{
-			CurrentHolding: h,
-			MarketValueGBP: h.NetShares.Mul(price).Round(2),
-			Priced:         true,
-		})
+			price, err := s.prices.ClosePriceGBP(ctx, marketprice.Instrument{
+				ID:           h.InstrumentID,
+				Ticker:       h.Ticker,
+				BaseCurrency: h.BaseCurrency,
+			}, today)
+			if err != nil {
+				s.logger.Warn("failed to price holding, excluding from market value",
+					zap.String("ticker", h.Ticker), zap.Error(err))
+				priced[i] = pricedHolding{CurrentHolding: h}
+				return
+			}
+
+			priced[i] = pricedHolding{
+				CurrentHolding: h,
+				MarketValueGBP: h.NetShares.Mul(price).Round(2),
+				Priced:         true,
+			}
+		}(i, h)
 	}
+	wg.Wait()
 
 	return priced, nil
 }
