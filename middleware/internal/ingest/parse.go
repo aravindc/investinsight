@@ -4,6 +4,7 @@ import (
 	"encoding/csv"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -49,13 +50,28 @@ func (e RowError) Error() string {
 func ParseCSV(r io.Reader, hasHeader bool) (rows []ParsedRow, errs []RowError) {
 	reader := csv.NewReader(r)
 
+	// Column positions default to the legacy layout; when a header is present they
+	// are resolved by name, since newer exports rename "Time" to "Time (UTC)" and
+	// insert extra columns such as "Total (Account CCY)".
+	cols := legacyColumns
 	lineOffset := 1
 	if hasHeader {
-		if _, err := reader.Read(); err != nil {
+		header, err := reader.Read()
+		if err != nil {
 			errs = append(errs, RowError{Line: 1, Err: fmt.Errorf("reading header: %w", err)})
 			return nil, errs
 		}
+		if cols, err = resolveColumns(header); err != nil {
+			errs = append(errs, RowError{Line: 1, Err: err})
+			return nil, errs
+		}
 		lineOffset = 2
+	}
+	minColumns := 0
+	for _, idx := range cols {
+		if idx+1 > minColumns {
+			minColumns = idx + 1
+		}
 	}
 
 	parseDecimal := func(val string) decimal.Decimal {
@@ -81,44 +97,159 @@ func ParseCSV(r io.Reader, hasHeader bool) (rows []ParsedRow, errs []RowError) {
 			continue
 		}
 
-		if len(record) < 21 {
-			errs = append(errs, RowError{Line: line, Err: fmt.Errorf("expected 21 columns, got %d", len(record))})
+		if len(record) < minColumns {
+			errs = append(errs, RowError{Line: line, Err: fmt.Errorf("expected at least %d columns, got %d", minColumns, len(record))})
 			line++
 			continue
 		}
 
-		txTime, err := time.Parse("2006-01-02 15:04:05", record[1])
+		field := func(col string) string {
+			idx, ok := cols[col]
+			if !ok {
+				return ""
+			}
+			return record[idx]
+		}
+
+		// Prefer the account-currency total when the export provides one.
+		totalStr, totalCcy := field(colTotal), field(colTotalCcy)
+		if v := strings.TrimSpace(field(colTotalAccountCcy)); v != "" {
+			totalStr, totalCcy = v, accountCurrency
+		}
+
+		txTime, err := parseTransactionTime(field(colTime))
 		if err != nil {
-			errs = append(errs, RowError{Line: line, Err: fmt.Errorf("invalid time %q", record[1])})
+			errs = append(errs, RowError{Line: line, Err: fmt.Errorf("invalid time %q", field(colTime))})
 			line++
 			continue
 		}
 
 		rows = append(rows, ParsedRow{
-			Action:                record[0],
+			Action:                field(colAction),
 			TransactionTime:       txTime,
-			ISIN:                  record[2],
-			Ticker:                record[3],
-			Name:                  record[4],
-			Notes:                 record[5],
-			InternalID:            record[6],
-			NoOfShares:            parseDecimal(record[7]),
-			PricePerShare:         parseDecimal(record[8]),
-			CurrencyPricePerShare: record[9],
-			ExchangeRate:          parseDecimal(record[10]),
-			Result:                parseDecimal(record[11]),
-			CurrencyResult:        record[12],
-			Total:                 parseDecimal(record[13]),
-			CurrencyTotal:         record[14],
-			WithholdingTax:        parseDecimal(record[15]),
-			CurrencyWithholding:   record[16],
-			StampDuty:             parseDecimal(record[17]),
-			CurrencyStamp:         record[18],
-			ConversionFee:         parseDecimal(record[19]),
-			CurrencyConversion:    record[20],
+			ISIN:                  field(colISIN),
+			Ticker:                field(colTicker),
+			Name:                  field(colName),
+			Notes:                 field(colNotes),
+			InternalID:            field(colID),
+			NoOfShares:            parseDecimal(field(colShares)),
+			PricePerShare:         parseDecimal(field(colPrice)),
+			CurrencyPricePerShare: field(colPriceCcy),
+			ExchangeRate:          parseDecimal(field(colExchangeRate)),
+			Result:                parseDecimal(field(colResult)),
+			CurrencyResult:        field(colResultCcy),
+			Total:                 parseDecimal(totalStr),
+			CurrencyTotal:         totalCcy,
+			WithholdingTax:        parseDecimal(field(colWithholding)),
+			CurrencyWithholding:   field(colWithholdingCcy),
+			StampDuty:             parseDecimal(field(colStampDuty)),
+			CurrencyStamp:         field(colStampDutyCcy),
+			ConversionFee:         parseDecimal(field(colConversionFee)),
+			CurrencyConversion:    field(colConversionFeeCcy),
 		})
 		line++
 	}
 
 	return rows, errs
+}
+
+const (
+	colAction           = "Action"
+	colTime             = "Time"
+	colISIN             = "ISIN"
+	colTicker           = "Ticker"
+	colName             = "Name"
+	colNotes            = "Notes"
+	colID               = "ID"
+	colShares           = "No. of shares"
+	colPrice            = "Price / share"
+	colPriceCcy         = "Currency (Price / share)"
+	colExchangeRate     = "Exchange rate"
+	colResult           = "Result"
+	colResultCcy        = "Currency (Result)"
+	colTotal            = "Total"
+	colTotalCcy         = "Currency (Total)"
+	colWithholding      = "Withholding tax"
+	colWithholdingCcy   = "Currency (Withholding tax)"
+	colStampDuty        = "Stamp duty reserve tax"
+	colStampDutyCcy     = "Currency (Stamp duty reserve tax)"
+	colConversionFee    = "Currency conversion fee"
+	colConversionFeeCcy = "Currency (Currency conversion fee)"
+
+	// colTotalAccountCcy is optional: newer exports carry it alongside "Total",
+	// which is then in the instrument's currency for some actions (e.g. ADR Fee).
+	colTotalAccountCcy = "Total (Account CCY)"
+)
+
+// accountCurrency is the currency "Total (Account CCY)" is denominated in.
+const accountCurrency = "GBP"
+
+// legacyColumns is the positional layout of the original 21-column export,
+// used when the CSV has no header row.
+var legacyColumns = map[string]int{
+	colAction: 0, colTime: 1, colISIN: 2, colTicker: 3, colName: 4, colNotes: 5, colID: 6,
+	colShares: 7, colPrice: 8, colPriceCcy: 9, colExchangeRate: 10, colResult: 11,
+	colResultCcy: 12, colTotal: 13, colTotalCcy: 14, colWithholding: 15,
+	colWithholdingCcy: 16, colStampDuty: 17, colStampDutyCcy: 18,
+	colConversionFee: 19, colConversionFeeCcy: 20,
+}
+
+// headerAliases maps alternative header names onto the canonical column name.
+var headerAliases = map[string]string{
+	"Time (UTC)": colTime,
+}
+
+// resolveColumns maps each required column to its index in the header row.
+func resolveColumns(header []string) (map[string]int, error) {
+	found := make(map[string]int, len(header))
+	for i, h := range header {
+		h = strings.TrimSpace(strings.TrimPrefix(h, "\uFEFF"))
+		if alias, ok := headerAliases[h]; ok {
+			h = alias
+		}
+		if _, dup := found[h]; !dup {
+			found[h] = i
+		}
+	}
+
+	cols := make(map[string]int, len(legacyColumns))
+	var missing []string
+	for col := range legacyColumns {
+		idx, ok := found[col]
+		if !ok {
+			missing = append(missing, col)
+			continue
+		}
+		cols[col] = idx
+	}
+	if len(missing) > 0 {
+		return nil, fmt.Errorf("missing required columns: %s", strings.Join(missing, ", "))
+	}
+	if idx, ok := found[colTotalAccountCcy]; ok {
+		cols[colTotalAccountCcy] = idx
+	}
+	return cols, nil
+}
+
+// transactionTimeLayouts covers the timestamp formats seen across export versions.
+// Layouts without an offset are interpreted as UTC.
+var transactionTimeLayouts = []string{
+	"2006-01-02 15:04:05",
+	"2006-01-02 15:04:05.999999999",
+	"2006-01-02 15:04:05Z07:00",
+	"2006-01-02 15:04:05.999999999Z07:00",
+	time.RFC3339Nano,
+}
+
+func parseTransactionTime(val string) (time.Time, error) {
+	val = strings.TrimSpace(val)
+	var lastErr error
+	for _, layout := range transactionTimeLayouts {
+		t, err := time.Parse(layout, val)
+		if err == nil {
+			return t.UTC(), nil
+		}
+		lastErr = err
+	}
+	return time.Time{}, lastErr
 }
