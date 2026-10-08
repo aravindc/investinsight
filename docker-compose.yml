@@ -12,6 +12,45 @@ services:
       - 5888:5432
     volumes:
       - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  middleware:
+    build: ./middleware
+    container_name: investinsight-middleware
+    restart: always
+    environment:
+      APP_PORT: 3000
+      DB_HOST: db
+      DB_PORT: 5432
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      DB_SSLMODE: disable
+      LOGO_DEV_API_KEY: ${LOGO_DEV_API_KEY:-}
+    # No published port: the frontend's nginx proxies /api to it internally.
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:3000/healthz"]
+      interval: 10s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: investinsight-frontend
+    restart: always
+    ports:
+      - 8080:80
+    depends_on:
+      middleware:
+        condition: service_healthy
 
 volumes:
   postgres_data:
