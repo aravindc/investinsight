@@ -166,6 +166,42 @@ func (r *Repository) FailInterruptedSyncs(ctx context.Context) error {
 	return err
 }
 
+// scopedAccount is an account in a CashScope and whether it has a Trading
+// 212 connection.
+type scopedAccount struct {
+	ID        uuid.UUID
+	Name      string
+	Connected bool
+}
+
+// AccountsInScope lists the accounts a CashScope covers, ordered by name.
+func (r *Repository) AccountsInScope(ctx context.Context, scope CashScope) ([]scopedAccount, error) {
+	where, arg := "a.id = $1", scope.AccountID
+	if scope.Household {
+		where, arg = "a.household_id = $1", scope.HouseholdID
+	}
+	rows, err := r.db.QueryContext(ctx, `
+		SELECT a.id, a.name, c.account_id IS NOT NULL
+		FROM accounts a
+		LEFT JOIN trading212_connections c ON c.account_id = a.id
+		WHERE `+where+`
+		ORDER BY a.name;`, arg)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var out []scopedAccount
+	for rows.Next() {
+		var a scopedAccount
+		if err := rows.Scan(&a.ID, &a.Name, &a.Connected); err != nil {
+			return nil, err
+		}
+		out = append(out, a)
+	}
+	return out, rows.Err()
+}
+
 // LatestTransactionTime returns the newest imported transaction for the
 // account (e.g. from earlier CSV uploads), or a zero time if there are none.
 func (r *Repository) LatestTransactionTime(ctx context.Context, accountID uuid.UUID) (time.Time, error) {

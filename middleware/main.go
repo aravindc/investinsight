@@ -104,7 +104,7 @@ func main() {
 	if err := t212Repo.FailInterruptedSyncs(context.Background()); err != nil {
 		logger.Error("failed to reset interrupted Trading 212 syncs", zap.Error(err))
 	}
-	t212Service := trading212.NewService(t212Repo, t212Client, credentialsCipher, ingestEngine, logger)
+	t212Service := trading212.NewService(t212Repo, t212Client, credentialsCipher, ingestEngine, summaryService, logger)
 	t212Handler := trading212.NewHandler(t212Repo, t212Service, logger)
 	t212Handler.RegisterRoutes(api)
 

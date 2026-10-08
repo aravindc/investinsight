@@ -23,9 +23,36 @@ func NewHandler(repo *Repository, service *Service, log *zap.Logger) *Handler {
 
 func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/trading212/connections", h.listConnections)
+	router.GET("/trading212/cash", h.cash)
 	router.PUT("/accounts/:id/trading212", h.connect)
 	router.DELETE("/accounts/:id/trading212", h.disconnect)
 	router.POST("/accounts/:id/trading212/sync", h.sync)
+	router.GET("/accounts/:id/trading212/reconciliation", h.reconcile)
+}
+
+func (h *Handler) reconcile(c *gin.Context) {
+	accountID, ok := parseAccountID(c)
+	if !ok {
+		return
+	}
+	rec, err := h.service.Reconcile(c.Request.Context(), accountID)
+	switch {
+	case err == nil:
+		c.JSON(http.StatusOK, rec)
+	case errors.Is(err, ErrNotConnected):
+		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrUnauthorized):
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Trading 212 rejected the stored API key/secret; replace the key."})
+	case errors.Is(err, ErrRateLimited):
+		c.JSON(http.StatusTooManyRequests, gin.H{"error": "Trading 212 rate limit hit; wait a few seconds and try again."})
+	case errors.Is(err, ErrUnsupportedCurrency):
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+	case errors.Is(err, ErrNoEncryptionKey):
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "Server is missing CREDENTIALS_ENCRYPTION_KEY, so stored API keys can't be read."})
+	default:
+		h.log.Error("failed to reconcile with trading 212", zap.String("accountId", accountID.String()), zap.Error(err))
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Couldn't reconcile with Trading 212."})
+	}
 }
 
 func (h *Handler) listConnections(c *gin.Context) {
@@ -120,6 +147,21 @@ func (h *Handler) sync(c *gin.Context) {
 		h.log.Error("failed to start trading 212 sync", zap.String("accountId", accountID.String()), zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to start sync"})
 	}
+}
+
+func (h *Handler) cash(c *gin.Context) {
+	scope, err := ParseCashScope(c.Query("scope"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	summary, err := h.service.Cash(c.Request.Context(), scope)
+	if err != nil {
+		h.log.Error("failed to compute trading 212 cash", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load cash balances"})
+		return
+	}
+	c.JSON(http.StatusOK, summary)
 }
 
 func parseAccountID(c *gin.Context) (uuid.UUID, bool) {
