@@ -21,6 +21,7 @@ import (
 	"investinsight/middleware/internal/marketprice"
 	"investinsight/middleware/internal/migrate"
 	"investinsight/middleware/internal/portfolio"
+	"investinsight/middleware/internal/trading212"
 )
 
 func main() {
@@ -52,7 +53,7 @@ func main() {
 
 	router.Use(gin.Recovery())
 	router.Use(cors.New(cors.Config{
-		AllowOrigins: []string{"http://localhost:5173"},
+		AllowOrigins: cfg.CORSAllowedOrigins,
 		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
 	}))
 	router.Use(requestLogger(logger))
@@ -87,6 +88,25 @@ func main() {
 	logoService := logo.NewService(logoRepo, logoClient, logger)
 	logoHandler := logo.NewHandler(logoRepo, logoService, logger)
 	logoHandler.RegisterRoutes(api)
+
+	credentialsCipher, err := trading212.NewCipher(cfg.CredentialsEncryptionKey)
+	if err != nil {
+		logger.Fatal("invalid credentials encryption key", zap.Error(err))
+	}
+	if credentialsCipher == nil {
+		logger.Warn("CREDENTIALS_ENCRYPTION_KEY not set; Trading 212 connections are disabled")
+	}
+	t212Client, err := trading212.NewClient(cfg.Trading212BaseURL)
+	if err != nil {
+		logger.Fatal("invalid Trading 212 base URL", zap.Error(err))
+	}
+	t212Repo := trading212.NewRepository(database)
+	if err := t212Repo.FailInterruptedSyncs(context.Background()); err != nil {
+		logger.Error("failed to reset interrupted Trading 212 syncs", zap.Error(err))
+	}
+	t212Service := trading212.NewService(t212Repo, t212Client, credentialsCipher, ingestEngine, logger)
+	t212Handler := trading212.NewHandler(t212Repo, t212Service, logger)
+	t212Handler.RegisterRoutes(api)
 
 	instrumentRepo := instrument.NewRepository(database)
 	instrumentHandler := instrument.NewHandler(instrumentRepo, logger)

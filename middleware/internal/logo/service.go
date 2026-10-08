@@ -39,7 +39,7 @@ func (s *Service) BackfillAll(ctx context.Context) (*BackfillResult, error) {
 
 	result := &BackfillResult{}
 	for _, inst := range instruments {
-		symbol := marketprice.YahooSymbol(inst.Ticker, inst.BaseCurrency)
+		symbol := marketprice.YahooSymbol(inst.Ticker, inst.BaseCurrency, inst.ISIN)
 
 		image, err := s.client.FetchLogo(ctx, symbol)
 		if err != nil {

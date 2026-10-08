@@ -21,13 +21,14 @@ type Instrument struct {
 	ID           uuid.UUID
 	Ticker       string
 	BaseCurrency string
+	ISIN         string
 }
 
 // InstrumentsMissingLogo lists every instrument that doesn't yet have a
 // stored logo row — the set to fetch on each daily backfill run.
 func (r *Repository) InstrumentsMissingLogo(ctx context.Context) ([]Instrument, error) {
 	query := `
-		SELECT i.id, i.ticker, i.base_currency
+		SELECT i.id, i.ticker, i.base_currency, i.isin
 		FROM instruments i
 		LEFT JOIN instrument_logos l ON l.instrument_id = i.id
 		WHERE l.instrument_id IS NULL;`
@@ -41,7 +42,7 @@ func (r *Repository) InstrumentsMissingLogo(ctx context.Context) ([]Instrument, 
 	var instruments []Instrument
 	for rows.Next() {
 		var inst Instrument
-		if err := rows.Scan(&inst.ID, &inst.Ticker, &inst.BaseCurrency); err != nil {
+		if err := rows.Scan(&inst.ID, &inst.Ticker, &inst.BaseCurrency, &inst.ISIN); err != nil {
 			return nil, err
 		}
 		instruments = append(instruments, inst)

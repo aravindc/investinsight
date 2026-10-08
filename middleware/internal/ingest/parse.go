@@ -57,6 +57,11 @@ func ParseCSV(r io.Reader, hasHeader bool) (rows []ParsedRow, errs []RowError) {
 	lineOffset := 1
 	if hasHeader {
 		header, err := reader.Read()
+		if err == io.EOF {
+			// An empty file (e.g. an export of a period with no activity)
+			// simply has no transactions.
+			return nil, nil
+		}
 		if err != nil {
 			errs = append(errs, RowError{Line: 1, Err: fmt.Errorf("reading header: %w", err)})
 			return nil, errs
@@ -212,24 +217,34 @@ func resolveColumns(header []string) (map[string]int, error) {
 		}
 	}
 
-	cols := make(map[string]int, len(legacyColumns))
 	var missing []string
-	for col := range legacyColumns {
-		idx, ok := found[col]
-		if !ok {
+	for _, col := range requiredColumns {
+		if _, ok := found[col]; !ok {
 			missing = append(missing, col)
-			continue
 		}
-		cols[col] = idx
 	}
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing required columns: %s", strings.Join(missing, ", "))
+	}
+
+	// Every other known column is optional: exports omit columns with no
+	// data in the period (e.g. no sells means no "Result"), and a missing
+	// column reads as empty.
+	cols := make(map[string]int, len(legacyColumns)+1)
+	for col := range legacyColumns {
+		if idx, ok := found[col]; ok {
+			cols[col] = idx
+		}
 	}
 	if idx, ok := found[colTotalAccountCcy]; ok {
 		cols[colTotalAccountCcy] = idx
 	}
 	return cols, nil
 }
+
+// requiredColumns must be present in a CSV header; without them a row can't
+// be placed in the ledger at all.
+var requiredColumns = []string{colAction, colTime}
 
 // transactionTimeLayouts covers the timestamp formats seen across export versions.
 // Layouts without an offset are interpreted as UTC.
