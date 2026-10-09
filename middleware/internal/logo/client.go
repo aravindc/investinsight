@@ -2,6 +2,7 @@ package logo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -43,7 +44,7 @@ func (c *Client) FetchLogo(ctx context.Context, symbol string) (*Image, error) {
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
-		return nil, fmt.Errorf("requesting logo for %s: %w", symbol, err)
+		return nil, fmt.Errorf("requesting logo for %s: %w", symbol, redactURL(err, symbol))
 	}
 	defer resp.Body.Close()
 
@@ -65,4 +66,14 @@ func (c *Client) FetchLogo(ctx context.Context, symbol string) (*Image, error) {
 	}
 
 	return &Image{Data: data, ContentType: contentType}, nil
+}
+
+// redactURL strips the query string (which carries the API token) from the
+// URL a transport error reports, so the error can be logged safely.
+func redactURL(err error, symbol string) error {
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		urlErr.URL = logoDevBaseURL + url.PathEscape(symbol)
+	}
+	return err
 }
