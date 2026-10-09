@@ -22,3 +22,6 @@ middleware/bin/
 wip.*
 csv_loader/
 gbx2gbp/*.csv
+
+# Local-only compose overrides (e.g. host access to Postgres)
+docker-compose.override.yml

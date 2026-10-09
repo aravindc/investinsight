@@ -7,11 +7,10 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
-    # Ports completely removed. Strictly internal Docker network communication only.
-    ports:
-      - 5888:5432
     volumes:
       - postgres_data:/var/lib/postgresql
+    networks:
+      - investinsight-net
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 5s
@@ -36,6 +35,8 @@ services:
       # Encrypts stored Trading 212 API keys (base64, 32 bytes). Losing or
       # changing it makes stored keys unreadable; they'd need re-entering.
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
+    networks:
+      - investinsight-net
     # No published port: reached only via investinsight-proxy.
     depends_on:
       investinsight-db:
@@ -59,7 +60,8 @@ services:
     build: ./frontend
     container_name: investinsight-frontend
     restart: always
-    # No published port: reached only via investinsight-proxy.
+    networks:
+      - investinsight-net
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
       interval: 10s
@@ -70,10 +72,11 @@ services:
     image: nginx:1.29-alpine
     container_name: investinsight-proxy
     restart: always
-    ports:
-      - 8080:80
     volumes:
       - ./proxy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    networks:
+      - caddy-net
+      - investinsight-net
     depends_on:
       investinsight-middleware:
         condition: service_healthy
@@ -82,3 +85,8 @@ services:
 
 volumes:
   postgres_data:
+networks:
+  caddy-net:
+    external: true
+  investinsight-net:
+    driver: bridge
