@@ -30,8 +30,6 @@ services:
       DB_NAME: ${POSTGRES_DB}
       DB_SSLMODE: disable
       LOGO_DEV_API_KEY: ${LOGO_DEV_API_KEY:-}
-      # Origin the app is served from via investinsight-proxy.
-      CORS_ALLOWED_ORIGINS: http://localhost:8080
       # Encrypts stored Trading 212 API keys (base64, 32 bytes). Losing or
       # changing it makes stored keys unreadable; they'd need re-entering.
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
