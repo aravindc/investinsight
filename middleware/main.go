@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
 	"go.uber.org/zap"
 
@@ -55,10 +54,7 @@ func main() {
 	router := gin.New()
 
 	router.Use(gin.Recovery())
-	router.Use(cors.New(cors.Config{
-		AllowOrigins: cfg.CORSAllowedOrigins,
-		AllowMethods: []string{"GET", "POST", "PUT", "DELETE"},
-	}))
+	router.Use(crossOriginProtection())
 	router.Use(requestLogger(logger))
 
 	api := router.Group("/api")
@@ -145,6 +141,22 @@ func main() {
 	logger.Info("starting server", zap.String("addr", addr))
 	if err := router.Run(addr); err != nil {
 		logger.Fatal("server stopped", zap.Error(err))
+	}
+}
+
+// crossOriginProtection rejects cross-site POST/PUT/DELETE requests (CSRF).
+// The SPA and /api share one origin behind the proxy, so no CORS allowlist
+// is needed: browsers mark the app's own requests Sec-Fetch-Site:
+// same-origin (falling back to Origin vs Host), and requests without either
+// header (curl, scripts) aren't from a browser and pass.
+func crossOriginProtection() gin.HandlerFunc {
+	protection := http.NewCrossOriginProtection()
+	return func(c *gin.Context) {
+		if err := protection.Check(c.Request); err != nil {
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"error": "cross-origin request rejected"})
+			return
+		}
+		c.Next()
 	}
 }
 

@@ -72,8 +72,9 @@ go run .
 ```
 
 The server listens on `APP_PORT` (default `3000`) and expects Postgres to be
-reachable per `.env`. CORS is currently locked to `http://localhost:5173`
-(the Vite dev server).
+reachable per `.env`. The frontend calls `/api` on its own origin (via the
+Vite dev proxy or investinsight-proxy), so there is no CORS allowlist:
+cross-site POST/PUT/DELETE requests are rejected with a 403 to block CSRF.
 
 ## Endpoints
 
