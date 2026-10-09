@@ -442,7 +442,7 @@ func (r *Repository) InstrumentDividends(ctx context.Context, scope Scope) (map[
 	query := fmt.Sprintf(`
 		SELECT instrument_id, SUM(net_amount_gbp)
 		FROM portfolio_transactions
-		WHERE entry_type = 'DIVIDEND' AND %s
+		WHERE entry_type = 'DIVIDEND' AND instrument_id IS NOT NULL AND %s
 		GROUP BY instrument_id;`, scopeFilter)
 
 	rows, err := r.db.QueryContext(ctx, query, scopeArg)
@@ -471,7 +471,7 @@ func (r *Repository) InstrumentTrailingYearDividends(ctx context.Context, scope 
 	query := fmt.Sprintf(`
 		SELECT instrument_id, SUM(net_amount_gbp)
 		FROM portfolio_transactions
-		WHERE entry_type = 'DIVIDEND' AND timestamp >= NOW() - INTERVAL '365 days' AND %s
+		WHERE entry_type = 'DIVIDEND' AND instrument_id IS NOT NULL AND timestamp >= NOW() - INTERVAL '365 days' AND %s
 		GROUP BY instrument_id;`, scopeFilter)
 
 	rows, err := r.db.QueryContext(ctx, query, scopeArg)
@@ -508,7 +508,7 @@ func (r *Repository) InstrumentYearlyDividends(ctx context.Context, scope Scope)
 	query := fmt.Sprintf(`
 		SELECT instrument_id, EXTRACT(YEAR FROM timestamp)::int AS year, SUM(net_amount_gbp)
 		FROM portfolio_transactions
-		WHERE entry_type = 'DIVIDEND' AND %s
+		WHERE entry_type = 'DIVIDEND' AND instrument_id IS NOT NULL AND %s
 		GROUP BY instrument_id, year
 		ORDER BY instrument_id, year;`, scopeFilter)
 
