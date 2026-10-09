@@ -160,7 +160,9 @@ func (e *Engine) normalizeWithinTx(ctx context.Context, tx *sql.Tx, targetIDs []
 		var instrumentID *uuid.UUID
 		entryType := MapAction(raw.Action)
 
-		if isAssetEntry(entryType) {
+		// Rows without an ISIN (e.g. "Dividend adjustment" tax corrections)
+		// aren't tied to an instrument: linking them would create a blank one.
+		if isAssetEntry(entryType) && strings.TrimSpace(raw.ISIN.String) != "" {
 			id, err := e.getOrCreateInstrument(ctx, tx, raw.ISIN.String, raw.Ticker.String, raw.Name.String, raw.CurrencyPricePerShare)
 			if err != nil {
 				return err

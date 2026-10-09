@@ -133,18 +133,6 @@ async function postJson<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
-async function patchNoContent(path: string, body: unknown): Promise<void> {
-  const res = await fetch(`/api${path}`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const data = await res.json().catch(() => null)
-    throw new Error(data?.error ?? `Request to ${path} failed: ${res.status}`)
-  }
-}
-
 export function fetchTransactions(scopeParam: string) {
   return fetchJson<PortfolioTransaction[]>('/transactions', { scope: scopeParam })
 }
@@ -246,19 +234,29 @@ export function createHousehold(name: string) {
   return postJson<Household>('/households', { name })
 }
 
-export type Instrument = {
+export type InstrumentClassification = {
+  category: string
+  subCategory: string
+  sector: string
+  /** "" when not set */
+  subSector: string
+}
+
+export type Instrument = InstrumentClassification & {
   id: string
   ticker: string
   name: string
-  sector: string
 }
 
 export function fetchInstruments() {
   return fetchJson<Instrument[]>('/instruments')
 }
 
-export function updateInstrumentSector(instrumentId: string, sectorName: string) {
-  return patchNoContent(`/instruments/${instrumentId}/sector`, { sector: sectorName })
+export async function updateInstrumentClassification(
+  instrumentId: string,
+  classification: InstrumentClassification,
+) {
+  await sendJson<void>('PUT', `/instruments/${instrumentId}/classification`, classification)
 }
 
 export type Trading212SyncStatus = 'idle' | 'running' | 'succeeded' | 'failed'
@@ -397,4 +395,99 @@ export async function setCashIsaRate(accountId: string, ratePercent: string, eff
 
 export async function deleteCashIsa(accountId: string) {
   await sendJson<void>('DELETE', `/accounts/${accountId}/cash-isa`)
+}
+
+export type SubSector = {
+  name: string
+  instrumentCount: number
+}
+
+export type Sector = {
+  name: string
+  instrumentCount: number
+  subSectors: SubSector[]
+}
+
+export function fetchSectors() {
+  return fetchJson<Sector[]>('/sectors')
+}
+
+export function createSector(name: string) {
+  return postJson<Sector>('/sectors', { name })
+}
+
+export async function deleteSector(name: string) {
+  await sendJson<void>('DELETE', `/sectors/${encodeURIComponent(name)}`)
+}
+
+export function createSubSector(sector: string, name: string) {
+  return postJson<{ sector: string; name: string }>(
+    `/sectors/${encodeURIComponent(sector)}/sub-sectors`,
+    { name },
+  )
+}
+
+export async function deleteSubSector(sector: string, name: string) {
+  await sendJson<void>(
+    'DELETE',
+    `/sectors/${encodeURIComponent(sector)}/sub-sectors/${encodeURIComponent(name)}`,
+  )
+}
+
+export type SubCategory = {
+  name: string
+  instrumentCount: number
+}
+
+export type Category = {
+  name: string
+  instrumentCount: number
+  subCategories: SubCategory[]
+}
+
+export function fetchCategories() {
+  return fetchJson<Category[]>('/categories')
+}
+
+export function createCategory(name: string) {
+  return postJson<{ name: string }>('/categories', { name })
+}
+
+export async function deleteCategory(name: string) {
+  await sendJson<void>('DELETE', `/categories/${encodeURIComponent(name)}`)
+}
+
+export function createSubCategory(category: string, name: string) {
+  return postJson<{ category: string; name: string }>(
+    `/categories/${encodeURIComponent(category)}/sub-categories`,
+    { name },
+  )
+}
+
+export async function deleteSubCategory(category: string, name: string) {
+  await sendJson<void>(
+    'DELETE',
+    `/categories/${encodeURIComponent(category)}/sub-categories/${encodeURIComponent(name)}`,
+  )
+}
+
+export type ClassificationImportResult = {
+  updated: number
+  unchanged: number
+  createdCategories: string[]
+  createdSubCategories: string[]
+  createdSectors: string[]
+  createdSubSectors: string[]
+  skipped: { line: number; ticker: string; reason: string }[]
+}
+
+export async function importClassifications(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  const res = await fetch('/api/instruments/classification-import', { method: 'POST', body: formData })
+  if (!res.ok) {
+    const data = await res.json().catch(() => null)
+    throw new Error(data?.error ?? `Import failed: ${res.status}`)
+  }
+  return res.json() as Promise<ClassificationImportResult>
 }

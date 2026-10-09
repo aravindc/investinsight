@@ -1,10 +1,12 @@
 import { useSearchParams } from 'react-router-dom'
 import { CashIsaAdminCard } from '@/components/CashIsaAdminCard'
+import { CategoryAdminCard } from '@/components/CategoryAdminCard'
 import { CsvUploadCard } from '@/components/CsvUploadCard'
 import { HouseholdAccountCard } from '@/components/HouseholdAccountCard'
-import { InstrumentSectorCard } from '@/components/InstrumentSectorCard'
+import { InstrumentClassificationCard } from '@/components/InstrumentClassificationCard'
 import { LogoBackfillCard } from '@/components/LogoBackfillCard'
 import { MarketPriceBackfillCard } from '@/components/MarketPriceBackfillCard'
+import { SectorAdminCard } from '@/components/SectorAdminCard'
 import { Trading212Card } from '@/components/Trading212Card'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 
@@ -13,7 +15,7 @@ const TABS = [
   { value: 'import', label: 'Import' },
   { value: 'cash-isas', label: 'Cash ISAs' },
   { value: 'market-data', label: 'Market data' },
-  { value: 'instruments', label: 'Instruments' },
+  { value: 'categories', label: 'Categories' },
 ] as const
 
 type TabValue = (typeof TABS)[number]['value']
@@ -61,8 +63,12 @@ export function AdminPage() {
         </div>
       </TabsContent>
 
-      <TabsContent value="instruments" className="space-y-6">
-        <InstrumentSectorCard />
+      <TabsContent value="categories" className="space-y-6">
+        <div className="grid items-start gap-6 lg:grid-cols-2">
+          <CategoryAdminCard />
+          <SectorAdminCard />
+        </div>
+        <InstrumentClassificationCard />
       </TabsContent>
     </Tabs>
   )

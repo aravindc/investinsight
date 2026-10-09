@@ -16,12 +16,12 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 
-// Fixed hue assignment by sector identity, matching the backend's declared
-// sector order — never reassigned based on sort order or filtering, so a
-// given sector keeps the same color across renders. Also the canonical
-// list of valid sectors for the Admin sector-editor dropdown — must stay
-// in sync with middleware/internal/sector.All().
-export const SECTOR_ORDER = [
+// Fixed hue assignment for the built-in sectors (seeded by migration 00011),
+// never reassigned based on sort order or filtering, so a given sector keeps
+// the same color across renders. Sectors created from the Admin page get a
+// color derived from their name instead. The list of valid sectors itself
+// comes from the API (fetchSectors).
+const SECTOR_ORDER = [
   'Technology',
   'Financials',
   'Healthcare',
@@ -68,7 +68,11 @@ const SECTOR_ICONS: Record<string, LucideIcon> = {
 
 export function colorForSector(sector: string): string {
   const idx = SECTOR_ORDER.indexOf(sector as (typeof SECTOR_ORDER)[number])
-  return CHART_COLORS[idx % CHART_COLORS.length] ?? CHART_COLORS[CHART_COLORS.length - 1]
+  if (idx >= 0) return CHART_COLORS[idx % CHART_COLORS.length]
+  // Custom sector: a stable color from a hash of its name.
+  let hash = 0
+  for (const ch of sector) hash = (hash * 31 + ch.charCodeAt(0)) >>> 0
+  return CHART_COLORS[hash % CHART_COLORS.length]
 }
 
 export function iconForSector(sector: string): LucideIcon {

@@ -12,6 +12,7 @@ import (
 
 	"investinsight/middleware/internal/account"
 	"investinsight/middleware/internal/cashisa"
+	"investinsight/middleware/internal/category"
 	"investinsight/middleware/internal/config"
 	"investinsight/middleware/internal/db"
 	"investinsight/middleware/internal/household"
@@ -22,6 +23,7 @@ import (
 	"investinsight/middleware/internal/marketprice"
 	"investinsight/middleware/internal/migrate"
 	"investinsight/middleware/internal/portfolio"
+	"investinsight/middleware/internal/sector"
 	"investinsight/middleware/internal/trading212"
 )
 
@@ -112,6 +114,14 @@ func main() {
 	cashISARepo := cashisa.NewRepository(database)
 	cashISAHandler := cashisa.NewHandler(cashISARepo, logger)
 	cashISAHandler.RegisterRoutes(api)
+
+	categoryRepo := category.NewRepository(database)
+	categoryHandler := category.NewHandler(categoryRepo, logger)
+	categoryHandler.RegisterRoutes(api)
+
+	sectorRepo := sector.NewRepository(database)
+	sectorHandler := sector.NewHandler(sectorRepo, logger)
+	sectorHandler.RegisterRoutes(api)
 
 	instrumentRepo := instrument.NewRepository(database)
 	instrumentHandler := instrument.NewHandler(instrumentRepo, logger)
