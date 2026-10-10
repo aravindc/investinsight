@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { HelpCircle, Landmark } from 'lucide-react'
+import { Eye, EyeClosed, HelpCircle, Landmark } from 'lucide-react'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import {
   Tooltip,
@@ -9,10 +10,12 @@ import {
 import { useAccountScope } from '@/lib/account-scope'
 import { fetchCashIsas, fetchHoldingsSummary, fetchTrading212Cash } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
+import { setValuesHidden, useValuesHidden } from '@/lib/hide-values'
 
 /** Investment value plus Trading 212 cash, cash in pies and Cash ISAs. */
 export function TotalValueCard() {
   const { scopeParam } = useAccountScope()
+  const valuesHidden = useValuesHidden()
   // Same query key as ValueCard, so the holdings summary is fetched once.
   const holdings = useQuery({
     queryKey: ['holdings-summary', scopeParam],
@@ -64,6 +67,16 @@ export function TotalValueCard() {
               after each sync.
             </TooltipContent>
           </Tooltip>
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="text-muted-foreground ml-auto"
+            aria-label={valuesHidden ? 'Show values' : 'Hide values'}
+            aria-pressed={valuesHidden}
+            onClick={() => setValuesHidden(!valuesHidden)}
+          >
+            {valuesHidden ? <EyeClosed className="size-4" /> : <Eye className="size-4" />}
+          </Button>
         </div>
 
         {isLoading && <p className="text-muted-foreground mt-3 text-sm">Loading…</p>}

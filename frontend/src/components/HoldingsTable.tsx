@@ -31,7 +31,7 @@ import {
 import { InstrumentLogo } from '@/components/InstrumentLogo'
 import { useAccountScope } from '@/lib/account-scope'
 import { fetchHoldingsTable, type HoldingRow } from '@/lib/api'
-import { formatGbp } from '@/lib/format'
+import { formatGbp, maskValue } from '@/lib/format'
 
 const PAGE_SIZES = [10, 25, 100]
 
@@ -95,7 +95,8 @@ const columns = [
   columnHelper.accessor((row) => Number(row.shares), {
     id: 'shares',
     header: 'Shares',
-    cell: (info) => Number(info.getValue()).toLocaleString('en-GB', { maximumFractionDigits: 4 }),
+    cell: (info) =>
+      maskValue(Number(info.getValue()).toLocaleString('en-GB', { maximumFractionDigits: 4 })),
   }),
   columnHelper.accessor((row) => Number(row.costBasisGbp), {
     id: 'costBasis',
