@@ -3,6 +3,7 @@ import { BrowserRouter, Route, Routes } from 'react-router-dom'
 import { NavBar } from '@/components/NavBar'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { AccountProvider } from '@/lib/account-scope'
+import { useValuesHidden } from '@/lib/hide-values'
 import { ThemeProvider } from '@/lib/theme'
 import { AdminPage } from '@/pages/AdminPage'
 import { AnalyticsPage } from '@/pages/AnalyticsPage'
@@ -13,6 +14,10 @@ import { TransactionsPage } from '@/pages/TransactionsPage'
 const queryClient = new QueryClient()
 
 function App() {
+  // formatGbp reads the hide-values store directly, so re-render the whole
+  // tree when it changes.
+  useValuesHidden()
+
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider>

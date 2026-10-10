@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/table'
 import { useAccountScope } from '@/lib/account-scope'
 import { fetchTransactions, type PortfolioTransaction } from '@/lib/api'
+import { maskValue } from '@/lib/format'
 
 const ALL = '__all__'
 
@@ -49,9 +50,11 @@ const columns = [
   }),
   columnHelper.accessor('shares', {
     header: 'Shares',
+    cell: (info) => maskValue(info.getValue()),
   }),
   columnHelper.accessor('totalImpactGbp', {
     header: 'Impact (GBP)',
+    cell: (info) => maskValue(info.getValue()),
   }),
 ]
 
