@@ -113,23 +113,49 @@ the end of each session, and add a dated line to the log at the bottom.
 
 ## Phase 2: Sub-sector analysis
 
-- [ ] **T8. Sector → sub-sector hierarchy chart.** Show a sunburst (or nested
+- [x] **T8. Sector → sub-sector hierarchy chart.** Show a sunburst (or nested
   donut) and a treemap with sub-sectors grouped inside their sector. Clicking
   zooms into one sector, with a breadcrumb to go back.
-- [ ] **T9. Sub-sector performance and table.** Reuse T6/T7 with a group
+- [x] **T9. Sub-sector performance and table.** Reuse T6/T7 with a group
   column for the parent sector.
-- [ ] **T10. Unclassified callout.** Show how much value has no sub-sector,
+- [x] **T10. Unclassified callout.** Show how much value has no sub-sector,
   linking to the Admin classification card so it can be fixed.
+
+### Phase 2 outcome (2026-10-12)
+
+- **T8:** `AllocationHierarchy` shows sub-groups nested inside labelled
+  parent blocks when a sub-level tab is open and nothing is drilled into.
+  Clicking a parent header or any tile in it zooms in (sets `parent`), and
+  hovering a tile dims the other parents. It uses a custom squarified
+  layout (`lib/treemap-layout.ts`), because Recharts' Treemap can't add
+  parent gaps or header strips. The layout was checked for exact areas,
+  no overlaps and staying in bounds. The sunburst was dropped: the dataviz
+  skill caps donuts at about 6 segments, and there are 36 sub-sectors.
+- **T9:** the table gets a sortable Sector or Category column in the nested
+  view. The return chart adds the parent to repeated names (e.g. "ETF
+  (Equity)"). Above 14 rows it shows the best and worst 7, with a
+  Show all button. An outlier more than 2.5× the next bar (e.g. +3,329%)
+  is clipped at the axis end with a break mark, and its label keeps the
+  true value. The label margin is sized to the longest label.
+- **T10:** `UnclassifiedCallout` appears on the Sub-sector tab when any
+  holding has no sub-sector, linking to `/admin?tab=categories`. Live data
+  currently has none, so it hasn't been seen rendered.
+- **T12:** covered by the same generic components on the Sub-category tab
+  (nested view, drill-down and breadcrumb).
+- Checked with Playwright screenshots (`npx -y playwright@latest screenshot
+  --browser chromium --color-scheme dark …`). Values are hidden by
+  default, so screenshots don't expose amounts.
 
 ## Phase 3: Category analysis
 
-- [ ] **T11. Category allocation and performance.** Reuse the T5–T7 components
+- [~] **T11. Category allocation and performance.** Reuse the T5–T7 components
   for categories (e.g. Equity vs Other). Flag value still in the `Other`
-  catch-all.
+  catch-all. *The Category tab already works through the T5–T7 components;
+  flagging `Other` is still to do.*
 
 ## Phase 4: Sub-category analysis
 
-- [ ] **T12. Category → sub-category hierarchy.** Reuse T8/T9 for categories
+- [x] **T12. Category → sub-category hierarchy.** Reuse T8/T9 for categories
   (e.g. Equity → Stock vs ETF), including the drill-down and breadcrumb.
 
 ## Phase 5: Cross-cutting insights (stretch)
@@ -163,3 +189,6 @@ the end of each session, and add a dated line to the log at the bottom.
 - 2026-10-12: Phase 1 (T5–T7) built on `feature/analytics-sector`. tsc and
   lint are clean. No headless browser was available, so the charts haven't
   been checked visually yet.
+- 2026-10-12: Phase 2 (T8–T10) built on `feature/analytics-sub-sector`, and
+  T12 is covered by the same components. Checked visually with Playwright
+  in light and dark mode.

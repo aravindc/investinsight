@@ -18,6 +18,7 @@ import { formatGbp } from '@/lib/format'
 
 type SortKey =
   | 'name'
+  | 'parent'
   | 'instrumentCount'
   | 'marketValue'
   | 'share'
@@ -28,7 +29,7 @@ type SortKey =
 
 type SortState = { key: SortKey; dir: 'asc' | 'desc' } | null
 
-const SORT_VALUE: Record<Exclude<SortKey, 'name'>, (a: Allocation) => number | null> = {
+const SORT_VALUE: Record<Exclude<SortKey, 'name' | 'parent'>, (a: Allocation) => number | null> = {
   instrumentCount: (a) => a.instrumentCount,
   marketValue: (a) => Number(a.marketValueGbp),
   share: (a) => Number(a.sharePercent),
@@ -71,12 +72,15 @@ export function AllocationTable({
   groups,
   measure,
   dimensionLabel,
+  parentLabel,
   onSelect,
   selectLabel,
 }: {
   groups: Allocation[]
   measure: Measure
   dimensionLabel: string
+  // Adds a sortable column for the sector or category of each sub-group.
+  parentLabel?: string
   onSelect?: (group: Allocation) => void
   selectLabel?: string
 }) {
@@ -88,6 +92,12 @@ export function AllocationTable({
     const factor = sort.dir === 'asc' ? 1 : -1
     return [...groups].sort((a, b) => {
       if (sort.key === 'name') return a.name.localeCompare(b.name) * factor
+      if (sort.key === 'parent') {
+        return (
+          (a.parent ?? '').localeCompare(b.parent ?? '') * factor ||
+          Number(b.marketValueGbp) - Number(a.marketValueGbp)
+        )
+      }
       const av = SORT_VALUE[sort.key](a)
       const bv = SORT_VALUE[sort.key](b)
       // Missing values always sort last.
@@ -100,7 +110,7 @@ export function AllocationTable({
     setSort((current) =>
       current?.key === key
         ? { key, dir: current.dir === 'asc' ? 'desc' : 'asc' }
-        : { key, dir: key === 'name' ? 'asc' : 'desc' },
+        : { key, dir: key === 'name' || key === 'parent' ? 'asc' : 'desc' },
     )
 
   const total = (m: Measure) => sumMeasure(groups, measureSpec(m))
@@ -122,6 +132,7 @@ export function AllocationTable({
           <TableHeader>
             <TableRow>
               {head(dimensionLabel, 'name', '')}
+              {parentLabel && head(parentLabel, 'parent', '')}
               {head('Holdings', 'instrumentCount')}
               {head('Market value', 'marketValue')}
               {head('Share', 'share')}
@@ -143,8 +154,11 @@ export function AllocationTable({
                   <div className={g.unclassified ? 'text-muted-foreground italic' : 'font-medium'}>
                     {g.name}
                   </div>
-                  {g.parent && <div className="text-muted-foreground text-xs">{g.parent}</div>}
+                  {g.parent && !parentLabel && (
+                    <div className="text-muted-foreground text-xs">{g.parent}</div>
+                  )}
                 </TableCell>
+                {parentLabel && <TableCell className="text-muted-foreground">{g.parent}</TableCell>}
                 <TableCell className="text-right tabular-nums">
                   {g.instrumentCount}
                   {g.unpricedCount > 0 && (
@@ -184,6 +198,7 @@ export function AllocationTable({
           <TableFooter>
             <TableRow>
               <TableCell className="font-medium">Total</TableCell>
+              {parentLabel && <TableCell />}
               <TableCell className="text-right tabular-nums">
                 {groups.reduce((n, g) => n + g.instrumentCount, 0)}
               </TableCell>

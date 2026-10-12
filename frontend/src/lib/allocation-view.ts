@@ -80,6 +80,8 @@ export function useAllocationView() {
       const child = CHILD[dimension]
       if (child) update({ dimension: child, parent: group.name })
     },
+    // Zoom a sub-level view into one parent.
+    drillTo: (parentName: string) => update({ parent: parentName }),
     drillOut: () => update({ dimension: PARENT[dimension] ?? dimension, parent: null }),
   }
 }
