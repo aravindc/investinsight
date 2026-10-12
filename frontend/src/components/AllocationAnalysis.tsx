@@ -1,9 +1,12 @@
 import { ChevronRight } from 'lucide-react'
+import { AllocationHeatmap } from '@/components/AllocationHeatmap'
 import { AllocationHierarchy } from '@/components/AllocationHierarchy'
 import { AllocationPerformanceChart } from '@/components/AllocationPerformanceChart'
 import { AllocationTable } from '@/components/AllocationTable'
+import { AllocationOverTime } from '@/components/AllocationOverTime'
 import { AllocationTreemap } from '@/components/AllocationTreemap'
 import { ClassificationCallout } from '@/components/ClassificationCallout'
+import { ConcentrationCard } from '@/components/ConcentrationCard'
 import {
   Select,
   SelectContent,
@@ -44,6 +47,9 @@ export function AllocationAnalysis() {
   const parentLabel =
     dimension === 'sub-sector' ? 'Sector' : dimension === 'sub-category' ? 'Category' : null
   const nested = parentLabel !== null && parent === null && data?.groupBy === dimension
+  // The heatmap crosses the current dimension with the other family:
+  // sectors by how they're held (sub-category), categories by sector.
+  const crossBy = dimension === 'sector' || dimension === 'sub-sector' ? 'sub-category' : 'sector'
 
   return (
     <section className="space-y-4" aria-label="Allocation analysis">
@@ -131,6 +137,24 @@ export function AllocationAnalysis() {
               </div>
             </div>
           )}
+          <AllocationHeatmap rowsBy={dimension} colsBy={crossBy} parent={parent} />
+          <div className="grid gap-6 lg:grid-cols-5">
+            <div className="lg:col-span-2">
+              <ConcentrationCard
+                groups={groups}
+                totals={data.totals}
+                dimensionLabel={dimensionLabel}
+                warnOnGroupSize={dimension === 'sector' || dimension === 'sub-sector'}
+              />
+            </div>
+            <div className="min-w-0 lg:col-span-3">
+              <AllocationOverTime
+                dimension={dimension}
+                dimensionLabel={dimensionLabel}
+                parent={parent}
+              />
+            </div>
+          </div>
           <AllocationTable
             key={`${dimension}:${measure}`}
             groups={groups}

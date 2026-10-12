@@ -176,15 +176,60 @@ the end of each session, and add a dated line to the log at the bottom.
 
 ## Phase 5: Cross-cutting insights (stretch)
 
-- [ ] **T13. Cross-dimension heatmap.** Show a sector × category matrix
+- [x] **T13. Cross-dimension heatmap.** Show a sector × category matrix
   (e.g. how much Technology is held through ETFs vs stocks), shaded by value or
   gain %. This needs a two-level `groupBy` on the endpoint.
-- [ ] **T14. Concentration insights.** Show the top holdings' share within each
+- [x] **T14. Concentration insights.** Show the top holdings' share within each
   group, plus a simple diversification score, with warnings when one group
   exceeds a threshold.
-- [ ] **T15. Allocation over time.** Show a 100% stacked area chart of each
+- [x] **T15. Allocation over time.** Show a 100% stacked area chart of each
   group's share by month. This needs a new backend series grouped by dimension,
   so it's the largest item and should be done last.
+
+### Phase 5 outcome (2026-10-12)
+
+- **Backend:**
+  - `walkDailyValues` was extracted from `MarketValueSeries` and sums daily
+    values into buckets. A fingerprint of the series history was identical
+    before and after.
+  - `GET /portfolio/allocation-matrix?rows=&cols=` cross-tabulates any two
+    different dimensions. It returns non-empty cells only, with rows and
+    columns sorted by value.
+  - `GET /portfolio/allocation-series?groupBy=` returns month-end values per
+    group plus today, for holdings held today, classified as today.
+  - Every allocation group and the totals report `largestHolding` (share of
+    the group) and `effectiveHoldings` (1 / Σ weight²).
+  - All of these honour the Analytics filter, and tests are in
+    `allocation_insights_test.go`.
+- **T13 – `AllocationHeatmap`:** the current dimension × the other family
+  (sector-family views use sub-category columns, so you see how each sector
+  is held; category-family views use sector columns).
+  - Toggles between % of row and % of portfolio, and has row and column
+    totals.
+  - Uses one sequential hue, mixed from the card surface, shaded relative to
+    the largest cell, with a scale legend.
+  - The hovered or focused cell's details appear in a line below (no
+    tooltip).
+- **T14 – `ConcentrationCard`:**
+  - Shows effective holdings, the largest holding (warning over 10%) and the
+    largest group (warning over 30%, sector tabs only, since most of a
+    portfolio in equities is normal).
+  - Lists groups with 50% or more in one holding.
+  - Warnings use an amber icon and a label.
+- **T15 – `AllocationOverTime`:** a 100% stacked area chart with straight
+  segments between month ends.
+  - The 7 largest groups by current value take palette slots in that order;
+    the rest fold into a grey "N other …" band.
+  - The legend always shows, with the latest shares. The tooltip lists every
+    band.
+  - Colours are by current rank, not fixed per entity (there are more
+    sectors than hues). A filter that changes the ranking can recolour
+    bands. Revisit if that's confusing.
+- **Layout:** treemap and return chart → full-width heatmap → Concentration
+  next to the mix over time → table.
+- **Known gap (for T16):** when drilled into one sector, the Concentration
+  headline figures (effective holdings, largest holding) still describe the
+  whole selection, not that sector.
 
 ## Phase 6: Polish
 
@@ -210,3 +255,6 @@ the end of each session, and add a dated line to the log at the bottom.
   in light and dark mode.
 - 2026-10-12: Phase 3 (T11) built on `feature/analytics-category`. Phases 0–4
   are now done; Phase 5 (stretch) and Phase 6 (polish) remain.
+- 2026-10-12: Phase 5 (T13–T15) built on `feature/analytics-insights`.
+  Endpoints were checked against live data, and screenshots were taken in
+  light and dark mode on the sector, category and drilled-in views.

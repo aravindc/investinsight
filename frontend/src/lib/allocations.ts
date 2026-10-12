@@ -3,7 +3,9 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useAccountScope } from '@/lib/account-scope'
 import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import {
+  fetchAllocationMatrix,
   fetchAllocations,
+  fetchAllocationSeries,
   fetchCategories,
   fetchSectors,
   type Allocation,
@@ -54,8 +56,33 @@ export function needsClassifying(a: Allocation, groupBy: AllocationGroupBy): boo
   }
 }
 
+/** Holdings cross-tabulated by two dimensions, for the current scope and filter. */
+export function useAllocationMatrix(rows: AllocationGroupBy, cols: AllocationGroupBy) {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  return useQuery({
+    queryKey: ['allocation-matrix', scopeParam, rows, cols, resolvedInstrumentIds],
+    queryFn: () =>
+      fetchAllocationMatrix(scopeParam!, rows, cols, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+    placeholderData: keepPreviousData,
+  })
+}
+
+/** Month-end value per group, for the current scope and filter. */
+export function useAllocationSeries(groupBy: AllocationGroupBy) {
+  const { scopeParam } = useAccountScope()
+  const { resolvedInstrumentIds } = useAnalyticsFilter()
+  return useQuery({
+    queryKey: ['allocation-series', scopeParam, groupBy, resolvedInstrumentIds],
+    queryFn: () => fetchAllocationSeries(scopeParam!, groupBy, resolvedInstrumentIds ?? undefined),
+    enabled: !!scopeParam,
+    placeholderData: keepPreviousData,
+  })
+}
+
 /** Stable identity for a group; sub-level names repeat across parents. */
-export function allocationKey(a: Allocation): string {
+export function allocationKey(a: Pick<Allocation, 'name' | 'parent'>): string {
   return a.parent === null ? a.name : `${a.parent}/${a.name}`
 }
 
