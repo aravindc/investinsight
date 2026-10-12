@@ -126,7 +126,9 @@ export function AllocationTreemap({
         <CardTitle className="text-muted-foreground text-sm font-medium">
           {measureSpec(measure).label}
         </CardTitle>
-        <p className="text-3xl font-semibold">{headline === null ? 'N/A' : formatGbp(headline)}</p>
+        <p className="text-3xl font-semibold">{headline === null
+            ? 'N/A'
+            : `${measure === 'gain' && headline > 0 ? '+' : ''}${formatGbp(headline)}`}</p>
         <p className="text-muted-foreground text-xs">
           Tiles sized by {sizeSpec.label.toLowerCase()}
           {omitted > 0 && ` · ${omitted} with nothing to show left out`}
