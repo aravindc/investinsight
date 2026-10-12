@@ -25,13 +25,13 @@ export function isDimension(value: string | null): value is AllocationGroupBy {
 }
 
 /** Allocations for the current account scope and Analytics filter. */
-export function useAllocations(groupBy: AllocationGroupBy) {
+export function useAllocations(groupBy: AllocationGroupBy, enabled = true) {
   const { scopeParam } = useAccountScope()
   const { resolvedInstrumentIds } = useAnalyticsFilter()
   return useQuery({
     queryKey: ['allocations', scopeParam, groupBy, resolvedInstrumentIds],
     queryFn: () => fetchAllocations(scopeParam!, groupBy, resolvedInstrumentIds ?? undefined),
-    enabled: !!scopeParam,
+    enabled: !!scopeParam && enabled,
     // Keep the current charts on screen while a new dimension or filter loads.
     placeholderData: keepPreviousData,
   })

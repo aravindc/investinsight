@@ -50,11 +50,14 @@ function Figure({
 export function ConcentrationCard({
   groups,
   totals,
+  scopeLabel,
   dimensionLabel,
   warnOnGroupSize,
 }: {
   groups: Allocation[]
+  // The figures describe this sector or category; null for the selection.
   totals: AllocationFigures
+  scopeLabel: string | null
   dimensionLabel: string
   warnOnGroupSize: boolean
 }) {
@@ -62,7 +65,13 @@ export function ConcentrationCard({
   const largest = totals.largestHolding
   const largestShare = largest ? Number(largest.sharePercent) : null
   const topGroup = [...groups].sort((a, b) => Number(b.sharePercent) - Number(a.sharePercent))[0]
-  const topGroupShare = topGroup ? Number(topGroup.sharePercent) : null
+  // Group shares are of the whole selection; within one parent, re-base
+  // them on that parent's market value.
+  const base = scopeLabel
+    ? Number(totals.marketValueGbp)
+    : groups.reduce((sum, g) => sum + Number(g.marketValueGbp), 0)
+  const topGroupShare =
+    topGroup && base > 0 ? (Number(topGroup.marketValueGbp) / base) * 100 : null
   const dependent = groups
     .filter(
       (g) =>
@@ -75,7 +84,7 @@ export function ConcentrationCard({
   return (
     <Card className="h-full">
       <CardHeader>
-        <CardTitle>Concentration</CardTitle>
+        <CardTitle>Concentration{scopeLabel && ` in ${scopeLabel}`}</CardTitle>
         <p className="text-muted-foreground text-xs">
           By market value. Effective holdings is how many equal-sized holdings would be as
           diversified.

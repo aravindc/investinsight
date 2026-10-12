@@ -35,6 +35,11 @@ const PARENT: Partial<Record<AllocationGroupBy, AllocationGroupBy>> = {
   'sub-category': 'category',
 }
 
+/** The sector or category dimension a sub-level groups under, if any. */
+export function parentDimension(dimension: AllocationGroupBy): AllocationGroupBy | undefined {
+  return PARENT[dimension]
+}
+
 export function canDrill(dimension: AllocationGroupBy): boolean {
   return dimension in CHILD
 }
