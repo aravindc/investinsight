@@ -1,0 +1,133 @@
+# Story: Stunning visualizations for Analytics
+
+Add analysis of the portfolio by **Sector**, **Sub-sector**, **Category** and
+**Sub-category** to the Analytics page.
+
+Status key: `[ ]` todo · `[~]` in progress · `[x]` done. Update this file at
+the end of each session, and add a dated line to the log at the bottom.
+
+## Context (as of 2026-10-10)
+
+- Classification lives on `instruments`: `sector` → `sub_sector` (optional,
+  NULL when unset; migration 00014) and `category` → `sub_category` (required,
+  defaults to `Other`/`Other`; migration 00012).
+- Only sector has an allocation endpoint: `GET /portfolio/sector-allocations`
+  (`middleware/internal/portfolio/summary.go` `SectorAllocations`), returning
+  invested, market value, gain and gain % per sector. It is used by the
+  Holdings page donut (`frontend/src/components/SectorAllocationSection.tsx`).
+- Analytics page (`frontend/src/pages/AnalyticsPage.tsx`) has four KPI cards
+  plus `AssetCategoryFilter` (`lib/analytics-filter.tsx`), which narrows to
+  selected sectors or instruments via `resolvedInstrumentIds`.
+- Charts use Recharts 3. Sector colours and icons come from `lib/sector.ts`
+  (`colorForSector`, `MAX_SECTOR_SLICES`).
+- Every money figure must go through `formatGbp`/`maskValue` so the hide-values
+  toggle masks it, including chart axes and tooltips.
+- Load the `dataviz` skill before writing chart code.
+
+## Phase 0: Foundations
+
+- [x] **T1. Generic allocation endpoint.** Add `GET /portfolio/allocations?groupBy=sector|sub_sector|category|sub_category`
+  with the same scope and optional instrument filter as `holdings-summary`. Per
+  group, return the parent group (for sub-levels), instrument count, invested,
+  market value, gain, gain %, share of portfolio %, and trailing-12-month
+  dividends. Report a NULL sub-sector as "Unclassified". Add Go tests.
+  Either keep `sector-allocations` as is, or move it onto the new endpoint.
+- [x] **T2. Frontend data layer.** Add types and a `fetchAllocations(groupBy)`
+  function in `lib/api.ts`, plus a `useAllocations(groupBy)` hook that respects
+  the account scope and the Analytics filter.
+- [x] **T3. Colour system for all four dimensions.** Keep stable colours for
+  sectors and categories, and give each sub-sector or sub-category a shade of
+  its parent's colour. Validate the palette in light and dark mode using the
+  dataviz skill.
+- [x] **T4. Analytics layout and navigation.** Below the KPI cards, add a
+  section with a Sector · Sub-sector · Category · Sub-category switcher, plus a
+  shared "measure" toggle (market value / invested / gain / dividends). Persist
+  the chosen tab in the URL query string.
+
+### Phase 0 outcome (2026-10-12)
+
+- **Endpoint:** `GET /portfolio/allocations?scope=…&groupBy=sector|sub-sector|category|sub-category[&instrumentId=…]`
+  (`middleware/internal/portfolio/allocations.go`). It returns
+  `{groupBy, totals, groups[]}`. Each group has `name`, `parent` (null at the
+  top level), `unclassified`, `sharePercent` (of market value) and the shared
+  figures: instrument and unpriced counts, invested, market value, gain,
+  gain %, trailing-12-month dividends and yield %. Gain and yield are null
+  unless every holding in the group is priced. Groups are sorted by market
+  value. Unit tests are in `allocations_test.go`. `sector-allocations` is
+  unchanged and still feeds the Holdings page.
+- **Frontend data:** `fetchAllocations` in `lib/api.ts`. `useAllocations(groupBy)`,
+  `useGroupColor(groupBy)`, `allocationKey` and `DIMENSIONS` are in
+  `lib/allocations.ts`.
+- **Colours:** sectors use `colorForSector`. Categories take palette hues in
+  their configured order, and the `Other` category is neutral grey.
+  Sub-groups are shades of the parent's colour (100/72/50/34%), chosen by
+  position in the parent's configured list. Unclassified is 20%.
+- **UI:** `components/AllocationBreakdown.tsx` is on the Analytics page below
+  the KPI cards. It has dimension tabs and a measure select (market value,
+  invested, gain, dividends 12m), both kept in the URL (`?dimension=&measure=`).
+  It shows a ranked list with share bars. Phases 1–4 add their charts beside
+  or above this list, reusing the same hooks.
+- **Known gap for T5:** the portfolio has 12 sectors but there are only 8
+  palette hues, so `colorForSector` repeats colours. Fold the smallest
+  sectors into "Other" in charts (as `SectorAllocationSection` does with
+  `MAX_SECTOR_SLICES`), or label them directly.
+
+## Phase 1: Sector analysis
+
+- [ ] **T5. Sector allocation chart.** Show a donut or treemap of the selected
+  measure per sector, with a centre total and a legend showing % share.
+- [ ] **T6. Sector performance chart.** Show a diverging bar chart of gain %
+  (and gain £) per sector, sorted, with green/red against a zero baseline.
+- [ ] **T7. Sector breakdown table.** Show sortable rows with share, invested,
+  value, gain, yield and instrument count. Clicking a row drills into its
+  sub-sectors (T8).
+
+## Phase 2: Sub-sector analysis
+
+- [ ] **T8. Sector → sub-sector hierarchy chart.** Show a sunburst (or nested
+  donut) and a treemap with sub-sectors grouped inside their sector. Clicking
+  zooms into one sector, with a breadcrumb to go back.
+- [ ] **T9. Sub-sector performance and table.** Reuse T6/T7 with a group
+  column for the parent sector.
+- [ ] **T10. Unclassified callout.** Show how much value has no sub-sector,
+  linking to the Admin classification card so it can be fixed.
+
+## Phase 3: Category analysis
+
+- [ ] **T11. Category allocation and performance.** Reuse the T5–T7 components
+  for categories (e.g. Equity vs Other). Flag value still in the `Other`
+  catch-all.
+
+## Phase 4: Sub-category analysis
+
+- [ ] **T12. Category → sub-category hierarchy.** Reuse T8/T9 for categories
+  (e.g. Equity → Stock vs ETF), including the drill-down and breadcrumb.
+
+## Phase 5: Cross-cutting insights (stretch)
+
+- [ ] **T13. Cross-dimension heatmap.** Show a sector × category matrix
+  (e.g. how much Technology is held through ETFs vs stocks), shaded by value or
+  gain %. This needs a two-level `groupBy` on the endpoint.
+- [ ] **T14. Concentration insights.** Show the top holdings' share within each
+  group, plus a simple diversification score, with warnings when one group
+  exceeds a threshold.
+- [ ] **T15. Allocation over time.** Show a 100% stacked area chart of each
+  group's share by month. This needs a new backend series grouped by dimension,
+  so it's the largest item and should be done last.
+
+## Phase 6: Polish
+
+- [ ] **T16. States and responsiveness.** Cover loading skeletons, empty and
+  error states, mobile layout, keyboard and screen-reader access for
+  drill-downs, and dark mode.
+- [ ] **T17. Verify end to end.** Check that totals match the KPI cards, that
+  the Analytics filter and account scope apply, and that the hide-values
+  toggle masks all axes and tooltips. Run Go tests, `tsc` and lint, and check
+  in the browser.
+
+## Session log
+
+- 2026-10-10: Task list created. Nothing started.
+- 2026-10-12: Phase 0 (T1–T4) done on branch `feature/analytics-foundation`.
+  Totals for all four dimensions were checked against `holdings-summary`
+  on live data. Not yet viewed in a browser.

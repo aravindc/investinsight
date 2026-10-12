@@ -60,6 +60,9 @@ type CurrentHolding struct {
 	BaseCurrency string
 	ISIN         string
 	Sector       string
+	SubSector    *string // nil when the instrument has no sub-sector
+	Category     string
+	SubCategory  string
 	NetShares    decimal.Decimal
 	InvestedGBP  decimal.Decimal
 }
@@ -73,6 +76,9 @@ type instrumentLedgerRow struct {
 	BaseCurrency string
 	ISIN         string
 	Sector       string
+	SubSector    *string
+	Category     string
+	SubCategory  string
 	EntryType    string
 	Timestamp    time.Time
 	Shares       decimal.Decimal
@@ -101,6 +107,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	query := fmt.Sprintf(`
 		SELECT
 			i.id, i.ticker, i.name, i.base_currency, i.isin, i.sector,
+			i.sub_sector, i.category, i.sub_category,
 			pt.entry_type, pt.timestamp, pt.shares, pt.net_amount_gbp
 		FROM portfolio_transactions pt
 		JOIN instruments i ON i.id = pt.instrument_id
@@ -117,7 +124,7 @@ func (r *Repository) CurrentHoldings(ctx context.Context, scope Scope, filter Fi
 	var ledger []instrumentLedgerRow
 	for rows.Next() {
 		var l instrumentLedgerRow
-		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.ISIN, &l.Sector, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
+		if err := rows.Scan(&l.InstrumentID, &l.Ticker, &l.Name, &l.BaseCurrency, &l.ISIN, &l.Sector, &l.SubSector, &l.Category, &l.SubCategory, &l.EntryType, &l.Timestamp, &l.Shares, &l.NetAmountGBP); err != nil {
 			return nil, err
 		}
 		ledger = append(ledger, l)
@@ -152,6 +159,9 @@ func poolCurrentHoldings(ledger []instrumentLedgerRow) []CurrentHolding {
 				BaseCurrency: l.BaseCurrency,
 				ISIN:         l.ISIN,
 				Sector:       l.Sector,
+				SubSector:    l.SubSector,
+				Category:     l.Category,
+				SubCategory:  l.SubCategory,
 			}}
 			pools[l.InstrumentID] = p
 			order = append(order, l.InstrumentID)

@@ -27,6 +27,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/invested-value-series", h.investedValueSeries)
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
+	router.GET("/portfolio/allocations", h.allocations)
 	router.GET("/portfolio/irr", h.portfolioIRR)
 	router.GET("/portfolio/passive-income", h.passiveIncome)
 	router.GET("/portfolio/asset-categories", h.assetCategories)
@@ -174,6 +175,31 @@ func (h *Handler) sectorAllocations(c *gin.Context) {
 	if err != nil {
 		h.log.Error("failed to compute sector allocations", zap.Error(err))
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load sector allocations"})
+		return
+	}
+	c.JSON(http.StatusOK, allocations)
+}
+
+func (h *Handler) allocations(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	groupBy, err := ParseGroupBy(c.DefaultQuery("groupBy", string(GroupBySector)))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	allocations, err := h.summary.Allocations(c.Request.Context(), scope, filter, groupBy)
+	if err != nil {
+		h.log.Error("failed to compute allocations", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load allocations"})
 		return
 	}
 	c.JSON(http.StatusOK, allocations)
