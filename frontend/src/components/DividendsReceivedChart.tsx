@@ -101,8 +101,8 @@ export function DividendsReceivedChart() {
             <AreaChart data={series}>
               <defs>
                 <linearGradient id="dividendsReceivedFill" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="var(--color-chart-5)" stopOpacity={0.35} />
-                  <stop offset="100%" stopColor="var(--color-chart-5)" stopOpacity={0} />
+                  <stop offset="0%" stopColor="var(--color-chart-7)" stopOpacity={0.35} />
+                  <stop offset="100%" stopColor="var(--color-chart-7)" stopOpacity={0} />
                 </linearGradient>
               </defs>
               <XAxis
@@ -116,7 +116,7 @@ export function DividendsReceivedChart() {
                 type="monotone"
                 dataKey="cumulativeGbp"
                 name="Cumulative dividends"
-                stroke="var(--color-chart-5)"
+                stroke="var(--color-chart-7)"
                 strokeWidth={2}
                 fill="url(#dividendsReceivedFill)"
                 dot={false}

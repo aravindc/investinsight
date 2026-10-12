@@ -74,13 +74,42 @@ the end of each session, and add a dated line to the log at the bottom.
 
 ## Phase 1: Sector analysis
 
-- [ ] **T5. Sector allocation chart.** Show a donut or treemap of the selected
+- [x] **T5. Sector allocation chart.** Show a donut or treemap of the selected
   measure per sector, with a centre total and a legend showing % share.
-- [ ] **T6. Sector performance chart.** Show a diverging bar chart of gain %
+- [x] **T6. Sector performance chart.** Show a diverging bar chart of gain %
   (and gain £) per sector, sorted, with green/red against a zero baseline.
-- [ ] **T7. Sector breakdown table.** Show sortable rows with share, invested,
+- [x] **T7. Sector breakdown table.** Show sortable rows with share, invested,
   value, gain, yield and instrument count. Clicking a row drills into its
   sub-sectors (T8).
+
+### Phase 1 outcome (2026-10-12)
+
+- **Palette fix:** the `--chart-1..8` order in `index.css` failed the dataviz
+  validator (orange next to magenta in light mode, magenta next to red in
+  dark mode). It now uses the validated order (blue, orange, aqua, yellow,
+  magenta, green, violet, red), with the same hues and violet lightened to
+  `#6250d6`. This recolours sectors on the Holdings page, and the
+  invested-value chart's second line is now orange. The dividends chart was
+  switched to `chart-7` so it stays violet.
+- **Single hue for groups:** there are more sectors (12) than palette hues
+  (8), so the Phase 1 charts draw every group in `chart-1` and let labels
+  carry identity, rather than reusing a hue. `useGroupColor` is still unused
+  and is kept for the T8/T12 hierarchy views, where parents are few.
+- **Components:** `AllocationAnalysis` (the control row, a breadcrumb when
+  drilled in, and the layout) replaces `AllocationBreakdown`. It also adds:
+  - `AllocationTreemap` (T5): sized by the measure, or by market value when
+    the measure is Gain. Labels show only where they fit; tooltips work on
+    hover and keyboard focus.
+  - `AllocationPerformanceChart` (T6): return on cost, diverging from zero
+    with signed tip labels. Groups with unpriced holdings are listed
+    underneath.
+  - `AllocationTable` (T7): sortable, starts sorted by the measure, has a
+    totals row, and is the table version of both charts.
+- **Drill-down:** clicking a sector or category (tile, row or chevron) sets
+  `?dimension=sub-sector&parent=<sector>` (or the sub-category equivalent).
+  The breadcrumb goes back. This covers the basic part of T8 and T12, but
+  not the sunburst.
+- `SortableHead` is now generic over its sort key.
 
 ## Phase 2: Sub-sector analysis
 
@@ -131,3 +160,6 @@ the end of each session, and add a dated line to the log at the bottom.
 - 2026-10-12: Phase 0 (T1–T4) done on branch `feature/analytics-foundation`.
   Totals for all four dimensions were checked against `holdings-summary`
   on live data. Not yet viewed in a browser.
+- 2026-10-12: Phase 1 (T5–T7) built on `feature/analytics-sector`. tsc and
+  lint are clean. No headless browser was available, so the charts haven't
+  been checked visually yet.

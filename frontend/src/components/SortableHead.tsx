@@ -1,9 +1,8 @@
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { TableHead } from '@/components/ui/table'
-import type { SortKey, SortState } from '@/lib/use-name-count-sort'
 import { cn } from '@/lib/utils'
 
-export function SortableHead({
+export function SortableHead<K extends string>({
   label,
   sortKey,
   sort,
@@ -11,9 +10,9 @@ export function SortableHead({
   className,
 }: {
   label: string
-  sortKey: SortKey
-  sort: SortState
-  onToggle: (key: SortKey) => void
+  sortKey: K
+  sort: { key: K; dir: 'asc' | 'desc' } | null
+  onToggle: (key: K) => void
   className?: string
 }) {
   const active = sort?.key === sortKey
