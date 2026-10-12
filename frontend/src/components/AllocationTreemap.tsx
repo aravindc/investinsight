@@ -1,15 +1,21 @@
 import { useState } from 'react'
 import { ResponsiveContainer, Treemap, type TreemapNode } from 'recharts'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { allocationKey } from '@/lib/allocations'
+import { allocationKey, needsClassifying } from '@/lib/allocations'
 import { measureSpec, sumMeasure, type Measure } from '@/lib/allocation-view'
-import type { Allocation } from '@/lib/api'
+import type { Allocation, AllocationGroupBy } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
 const HEIGHT = 340
 // 2px surface gap between tiles: each tile is inset 1px on every side.
 const GAP = 1
 const TILE_COLOR = 'var(--color-chart-1)'
+// Holdings still to classify: a neutral wash with ink labels.
+const UNCLASSIFIED_COLOR = 'var(--color-muted-foreground)'
+const UNCLASSIFIED_OPACITY = 0.35
+// Tiles under this share are too thin to label; they're named below instead.
+const SMALL_SHARE = 0.03
+const MAX_SMALL_LISTED = 8
 
 type Node = {
   name: string
@@ -36,10 +42,12 @@ function sharePercent(size: number, total: number) {
 export function AllocationTreemap({
   groups,
   measure,
+  dimension,
   onSelect,
 }: {
   groups: Allocation[]
   measure: Measure
+  dimension: AllocationGroupBy
   onSelect?: (group: Allocation) => void
 }) {
   // The hovered or focused tile, with its position for the tooltip.
@@ -75,6 +83,9 @@ export function AllocationTreemap({
     const showShare = showName && h >= 44 && fits(share, w, 11)
     const isActive = active?.key === key
     const activate = () => setActive({ key, x, y, width })
+    const grey = needsClassifying(group, dimension)
+    const ink = grey ? 'var(--color-foreground)' : 'white'
+    const opacity = grey ? UNCLASSIFIED_OPACITY : 1
 
     return (
       <g
@@ -100,17 +111,17 @@ export function AllocationTreemap({
           width={w}
           height={h}
           rx={4}
-          fill={TILE_COLOR}
-          fillOpacity={active === null || isActive ? 1 : 0.55}
+          fill={grey ? UNCLASSIFIED_COLOR : TILE_COLOR}
+          fillOpacity={active === null || isActive ? opacity : opacity * 0.55}
           className="transition-[fill-opacity]"
         />
         {showName && (
-          <text x={x + GAP + 8} y={y + GAP + 18} fill="white" fontSize={12} fontWeight={500}>
+          <text x={x + GAP + 8} y={y + GAP + 18} fill={ink} fontSize={12} fontWeight={500}>
             {group.name}
           </text>
         )}
         {showShare && (
-          <text x={x + GAP + 8} y={y + GAP + 34} fill="white" fillOpacity={0.85} fontSize={11}>
+          <text x={x + GAP + 8} y={y + GAP + 34} fill={ink} fillOpacity={0.85} fontSize={11}>
             {share}
           </text>
         )}
@@ -118,6 +129,9 @@ export function AllocationTreemap({
     )
   }
 
+  const small = nodes
+    .filter((n) => total > 0 && n.size / total < SMALL_SHARE)
+    .sort((a, b) => b.size - a.size)
   const headline = sumMeasure(groups, measureSpec(measure))
 
   return (
@@ -167,6 +181,16 @@ export function AllocationTreemap({
               </div>
             )}
           </div>
+        )}
+        {small.length > 0 && (
+          <p className="text-muted-foreground mt-3 text-xs">
+            <span className="text-foreground font-medium">Smaller: </span>
+            {small
+              .slice(0, MAX_SMALL_LISTED)
+              .map((n) => `${n.group.name} ${sharePercent(n.size, total)}`)
+              .join(' · ')}
+            {small.length > MAX_SMALL_LISTED && ` · ${small.length - MAX_SMALL_LISTED} more in the table`}
+          </p>
         )}
       </CardContent>
     </Card>
