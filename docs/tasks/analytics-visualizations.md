@@ -148,10 +148,26 @@ the end of each session, and add a dated line to the log at the bottom.
 
 ## Phase 3: Category analysis
 
-- [~] **T11. Category allocation and performance.** Reuse the T5–T7 components
+- [x] **T11. Category allocation and performance.** Reuse the T5–T7 components
   for categories (e.g. Equity vs Other). Flag value still in the `Other`
-  catch-all. *The Category tab already works through the T5–T7 components;
-  flagging `Other` is still to do.*
+  catch-all.
+
+### Phase 3 outcome (2026-10-12)
+
+- `needsClassifying(group, dimension)` in `lib/allocations.ts` flags the
+  protected `Other` sector and category, sub-categories under `Other`, and
+  holdings with no sub-sector. The `Other` sector is treated like the
+  category, since new holdings land in it too.
+- `ClassificationCallout` (which replaces `UnclassifiedCallout`) shows on
+  any tab with flagged holdings: count, share of market value, and a link
+  to `/admin?tab=categories`. Treemap and nested-treemap tiles for flagged
+  groups are drawn in neutral grey with dark labels.
+- The treemap names groups under 3% share below the chart ("Smaller: …"),
+  since a dominant group (Equity at 98%) leaves the rest as unlabelled
+  slivers.
+- Live data has nothing in `Other`, so this was checked with a Playwright
+  script that renames one category in the intercepted response
+  (`page.route`), in light and dark mode.
 
 ## Phase 4: Sub-category analysis
 
@@ -192,3 +208,5 @@ the end of each session, and add a dated line to the log at the bottom.
 - 2026-10-12: Phase 2 (T8–T10) built on `feature/analytics-sub-sector`, and
   T12 is covered by the same components. Checked visually with Playwright
   in light and dark mode.
+- 2026-10-12: Phase 3 (T11) built on `feature/analytics-category`. Phases 0–4
+  are now done; Phase 5 (stretch) and Phase 6 (polish) remain.

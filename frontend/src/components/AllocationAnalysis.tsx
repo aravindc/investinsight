@@ -3,7 +3,7 @@ import { AllocationHierarchy } from '@/components/AllocationHierarchy'
 import { AllocationPerformanceChart } from '@/components/AllocationPerformanceChart'
 import { AllocationTable } from '@/components/AllocationTable'
 import { AllocationTreemap } from '@/components/AllocationTreemap'
-import { UnclassifiedCallout } from '@/components/UnclassifiedCallout'
+import { ClassificationCallout } from '@/components/ClassificationCallout'
 import {
   Select,
   SelectContent,
@@ -98,7 +98,9 @@ export function AllocationAnalysis() {
           className={`space-y-6 transition-opacity ${isPlaceholderData ? 'opacity-50' : ''}`}
           aria-busy={isPlaceholderData}
         >
-          {dimension === 'sub-sector' && <UnclassifiedCallout groups={groups} />}
+          {data.groupBy === dimension && (
+            <ClassificationCallout groups={groups} dimension={dimension} />
+          )}
           {nested ? (
             <div className="grid gap-6 lg:grid-cols-5">
               <div className="lg:col-span-3">
@@ -106,6 +108,7 @@ export function AllocationAnalysis() {
                   groups={groups}
                   measure={measure}
                   parentLabel={parentLabel}
+                  dimension={dimension}
                   onSelectParent={(name) => view.drillTo(name)}
                 />
               </div>
@@ -116,7 +119,12 @@ export function AllocationAnalysis() {
           ) : (
             <div className="grid gap-6 lg:grid-cols-5">
               <div className="lg:col-span-3">
-                <AllocationTreemap groups={groups} measure={measure} onSelect={drill} />
+                <AllocationTreemap
+                  groups={groups}
+                  measure={measure}
+                  dimension={data.groupBy}
+                  onSelect={drill}
+                />
               </div>
               <div className="lg:col-span-2">
                 <AllocationPerformanceChart groups={groups} />

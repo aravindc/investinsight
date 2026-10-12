@@ -35,6 +35,25 @@ export function useAllocations(groupBy: AllocationGroupBy) {
   })
 }
 
+// The protected catch-all sector and category new holdings land in.
+const CATCH_ALL = 'Other'
+
+/**
+ * Whether a group holds instruments still to be classified: those in the
+ * "Other" sector or category, or with no sub-sector.
+ */
+export function needsClassifying(a: Allocation, groupBy: AllocationGroupBy): boolean {
+  switch (groupBy) {
+    case 'sector':
+    case 'category':
+      return a.name === CATCH_ALL
+    case 'sub-sector':
+      return a.unclassified || a.parent === CATCH_ALL
+    case 'sub-category':
+      return a.parent === CATCH_ALL
+  }
+}
+
 /** Stable identity for a group; sub-level names repeat across parents. */
 export function allocationKey(a: Allocation): string {
   return a.parent === null ? a.name : `${a.parent}/${a.name}`

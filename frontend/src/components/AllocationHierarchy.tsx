@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { allocationKey } from '@/lib/allocations'
+import { allocationKey, needsClassifying } from '@/lib/allocations'
 import { measureSpec, sumMeasure, type Measure } from '@/lib/allocation-view'
-import type { Allocation } from '@/lib/api'
+import type { Allocation, AllocationGroupBy } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 import { inset, squarify, type Rect } from '@/lib/treemap-layout'
 
@@ -48,11 +48,13 @@ export function AllocationHierarchy({
   groups,
   measure,
   parentLabel,
+  dimension,
   onSelectParent,
 }: {
   groups: Allocation[]
   measure: Measure
   parentLabel: string
+  dimension: AllocationGroupBy
   onSelectParent: (parent: string) => void
 }) {
   const [containerRef, width] = useWidth<HTMLDivElement>()
@@ -124,7 +126,8 @@ export function AllocationHierarchy({
     const showName = r.height >= 22 && fits(g.name, r.width, 11)
     const share = percentOf(sizeOf(g), total)
     const showShare = showName && r.height >= 40 && fits(share, r.width, 11)
-    const ink = g.unclassified ? 'var(--color-foreground)' : 'white'
+    const grey = needsClassifying(g, dimension)
+    const ink = grey ? 'var(--color-foreground)' : 'white'
     const activate = () => setHovered({ group: g, x: r.x, y: r.y, width: r.width })
 
     return (
@@ -149,8 +152,8 @@ export function AllocationHierarchy({
         <rect
           {...r}
           rx={4}
-          fill={g.unclassified ? UNCLASSIFIED_COLOR : TILE_COLOR}
-          fillOpacity={g.unclassified ? 0.35 : 1}
+          fill={grey ? UNCLASSIFIED_COLOR : TILE_COLOR}
+          fillOpacity={grey ? 0.35 : 1}
         />
         {showName && (
           <text
