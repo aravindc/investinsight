@@ -1,10 +1,10 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { X } from 'lucide-react'
 import { Badge } from '@/components/ui/badge'
 import {
   Popover,
+  PopoverAnchor,
   PopoverContent,
-  PopoverTrigger,
 } from '@/components/ui/popover'
 import { colorForSector, iconForSector } from '@/lib/sector'
 import { useAnalyticsFilter, type FilterEntry } from '@/lib/analytics-filter'
@@ -21,6 +21,8 @@ export function AssetCategoryFilter() {
   const { selected, setSelected, categories, isLoading } = useAnalyticsFilter()
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
+  const boxRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
 
   const isSelected = (entry: FilterEntry) => selected.some((e) => entryKey(e) === entryKey(entry))
 
@@ -54,10 +56,17 @@ export function AssetCategoryFilter() {
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
+      {/* An anchor, not a trigger: a trigger toggles on every click, which
+          fought the input's open-on-focus and closed the list again. */}
+      <PopoverAnchor asChild>
         <div
+          ref={boxRef}
           className="border-input dark:bg-input/30 flex min-h-8 w-full max-w-xl flex-wrap items-center gap-1.5 rounded-lg border bg-transparent px-2.5 py-1.5 text-sm"
-          onClick={() => setOpen(true)}
+          // Anywhere in the box behaves like the input.
+          onClick={() => {
+            inputRef.current?.focus()
+            setOpen(true)
+          }}
         >
           {selected.map((entry) => (
             <Badge key={entryKey(entry)} variant="secondary" className="gap-1">
@@ -75,6 +84,7 @@ export function AssetCategoryFilter() {
             </Badge>
           ))}
           <input
+            ref={inputRef}
             value={query}
             onChange={(e) => {
               setQuery(e.target.value)
@@ -85,11 +95,15 @@ export function AssetCategoryFilter() {
             className="text-muted-foreground min-w-32 flex-1 bg-transparent outline-none placeholder:text-muted-foreground"
           />
         </div>
-      </PopoverTrigger>
+      </PopoverAnchor>
       <PopoverContent
         className="w-(--radix-popover-trigger-width) p-0"
         align="start"
         onOpenAutoFocus={(e) => e.preventDefault()}
+        // Clicks in the box (typing, removing a badge) aren't "outside".
+        onInteractOutside={(e) => {
+          if (boxRef.current?.contains(e.target as Node)) e.preventDefault()
+        }}
       >
         <div className="thin-scrollbar max-h-96 overflow-y-auto p-2">
           {isLoading && (

@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { ChevronRight } from 'lucide-react'
 import { AllocationHeatmap } from '@/components/AllocationHeatmap'
 import { AllocationHierarchy } from '@/components/AllocationHierarchy'
@@ -5,6 +6,7 @@ import { AllocationPerformanceChart } from '@/components/AllocationPerformanceCh
 import { AllocationTable } from '@/components/AllocationTable'
 import { AllocationOverTime } from '@/components/AllocationOverTime'
 import { AllocationTreemap } from '@/components/AllocationTreemap'
+import { Button } from '@/components/ui/button'
 import { ClassificationCallout } from '@/components/ClassificationCallout'
 import { ConcentrationCard } from '@/components/ConcentrationCard'
 import {
@@ -21,6 +23,7 @@ import {
   canDrill,
   isMeasure,
   MEASURES,
+  parentDimension,
   useAllocationView,
 } from '@/lib/allocation-view'
 
@@ -32,7 +35,27 @@ import {
 export function AllocationAnalysis() {
   const view = useAllocationView()
   const { dimension, measure, parent } = view
-  const { data, isLoading, error, isPlaceholderData } = useAllocations(dimension)
+  const { data, isLoading, error, isPlaceholderData, refetch, isFetching } = useAllocations(dimension)
+  // Drilled into one sector or category, concentration describes that
+  // parent: its own figures come from the parent dimension's allocations
+  // (usually cached from the tab the drill started on).
+  const parentDim = parentDimension(dimension) ?? dimension
+  const parentAllocations = useAllocations(parentDim, parent !== null)
+  const parentFigures = parent
+    ? parentAllocations.data?.groups.find((g) => g.parent === null && g.name === parent)
+    : undefined
+
+  // Move focus with a drill so keyboard and screen-reader users land on
+  // the new view: the breadcrumb going in, the heading coming back out.
+  const headingRef = useRef<HTMLHeadingElement>(null)
+  const crumbRef = useRef<HTMLSpanElement>(null)
+  const previousParent = useRef(parent)
+  useEffect(() => {
+    if (previousParent.current !== parent) {
+      ;(parent ? crumbRef : headingRef).current?.focus()
+      previousParent.current = parent
+    }
+  }, [parent])
 
   const dimensionLabel = DIMENSIONS.find((d) => d.value === dimension)!.label
   // While another dimension loads, the previous one stays on screen
@@ -54,7 +77,9 @@ export function AllocationAnalysis() {
   return (
     <section className="space-y-4" aria-label="Allocation analysis">
       <div className="flex flex-wrap items-center gap-3">
-        <h2 className="mr-auto text-lg font-semibold">Allocation</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="mr-auto text-lg font-semibold outline-none">
+          Allocation
+        </h2>
         <Tabs value={dimension} onValueChange={(v) => isDimension(v) && view.setDimension(v)}>
           <TabsList>
             {DIMENSIONS.map((d) => (
@@ -88,14 +113,29 @@ export function AllocationAnalysis() {
             {ALL_LABEL[dimension]}
           </button>
           <ChevronRight className="text-muted-foreground size-3.5" />
-          <span className="font-medium" aria-current="page">
+          <span ref={crumbRef} tabIndex={-1} className="font-medium outline-none" aria-current="page">
             {parent}
           </span>
         </nav>
       )}
 
-      {isLoading && <p className="text-muted-foreground text-sm">Loading…</p>}
-      {!!error && <p className="text-destructive text-sm">Failed to load allocations.</p>}
+      {isLoading && (
+        // First load only: placeholders the size of the charts, so the page
+        // doesn't jump. Later loads keep the previous charts, dimmed.
+        <div className="grid gap-6 lg:grid-cols-5" aria-busy="true">
+          <span className="sr-only">Loading allocation…</span>
+          <div className="bg-muted h-[440px] animate-pulse rounded-xl lg:col-span-3" />
+          <div className="bg-muted h-[440px] animate-pulse rounded-xl lg:col-span-2" />
+        </div>
+      )}
+      {!!error && !data && (
+        <div className="flex items-center gap-3 text-sm" role="alert">
+          <span className="text-destructive">Failed to load allocations.</span>
+          <Button variant="outline" size="sm" disabled={isFetching} onClick={() => refetch()}>
+            Try again
+          </Button>
+        </div>
+      )}
       {data && groups.length === 0 && !isPlaceholderData && (
         <p className="text-muted-foreground text-sm">No holdings to break down.</p>
       )}
@@ -142,7 +182,8 @@ export function AllocationAnalysis() {
             <div className="lg:col-span-2">
               <ConcentrationCard
                 groups={groups}
-                totals={data.totals}
+                totals={parentFigures ?? data.totals}
+                scopeLabel={parentFigures ? parentFigures.name : null}
                 dimensionLabel={dimensionLabel}
                 warnOnGroupSize={dimension === 'sector' || dimension === 'sub-sector'}
               />

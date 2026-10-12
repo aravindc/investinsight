@@ -26,7 +26,7 @@ function App() {
             <BrowserRouter>
               <div className="bg-background min-h-screen">
                 <NavBar />
-                <main className="mx-auto max-w-6xl space-y-6 p-6">
+                <main className="mx-auto max-w-6xl space-y-6 px-4 py-6 sm:p-6">
                   <Routes>
                     <Route path="/" element={<HoldingsPage />} />
                     <Route path="/dividends" element={<DividendsPage />} />

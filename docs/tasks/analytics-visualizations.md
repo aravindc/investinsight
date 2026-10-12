@@ -233,13 +233,50 @@ the end of each session, and add a dated line to the log at the bottom.
 
 ## Phase 6: Polish
 
-- [ ] **T16. States and responsiveness.** Cover loading skeletons, empty and
+- [x] **T16. States and responsiveness.** Cover loading skeletons, empty and
   error states, mobile layout, keyboard and screen-reader access for
   drill-downs, and dark mode.
-- [ ] **T17. Verify end to end.** Check that totals match the KPI cards, that
+- [x] **T17. Verify end to end.** Check that totals match the KPI cards, that
   the Analytics filter and account scope apply, and that the hide-values
   toggle masks all axes and tooltips. Run Go tests, `tsc` and lint, and check
   in the browser.
+
+### Phase 6 outcome (2026-10-12)
+
+- **T16 – mobile:** at 390px the page overflowed by 676px, all from the nav
+  bar. The nav now wraps, the links get their own scrolling row below `lg`
+  (the current page's link is scrolled into view), the Analytics KPI cards
+  are 2-up below `lg`, and page padding is 16px on phones. No horizontal
+  overflow remains.
+- **T16 – states:** the first load shows chart-sized pulse placeholders (later
+  loads keep the previous charts, dimmed). A load error offers Try again.
+- **T16 – keyboard and screen readers:**
+  - Treemap tiles show a 2px ring on keyboard focus, and nested-treemap
+    parent headers underline.
+  - Drilling in moves focus to the breadcrumb; drilling out moves it to the
+    Allocation heading.
+- **T16 – concentration when drilled in:** the card now describes that sector
+  ("Concentration in Financials"), using the parent's own figures from the
+  parent dimension's allocations. Group shares are re-based on the parent.
+- **T17 – API checks (19/19 pass):** for the household and two single
+  accounts, every dimension's totals and the matrix cells match
+  `holdings-summary`. The filter narrows allocations, matrix and series, and
+  a filter matching nothing returns nothing.
+  - Prices are live, so compare against a summary fetched just before and
+    after each call. A single earlier summary drifts as prices refresh.
+- **T17 – browser checks (15/15 pass):**
+  - With values hidden, no amount appears in the page text, the chart SVG
+    text, or the treemap, return-chart, heatmap or mix-over-time details.
+  - The focus ring shows; Enter drills in and focus lands on the breadcrumb;
+    going back focuses the heading.
+  - After Show values (on Holdings), amounts appear. A reload hides them
+    again, with no page errors.
+- **T17 – static checks:** Go vet and tests, `tsc`, the production build and
+  lint pass. All 6 lint warnings are in files that predate this story.
+- The check scripts lived in the session scratchpad and weren't committed.
+  They used the Playwright package installed there, with `page.route` for
+  mocking and `waitForLoadState('networkidle')`. Values were checked by
+  pattern only, never printed.
 
 ## Session log
 
@@ -258,3 +295,10 @@ the end of each session, and add a dated line to the log at the bottom.
 - 2026-10-12: Phase 5 (T13–T15) built on `feature/analytics-insights`.
   Endpoints were checked against live data, and screenshots were taken in
   light and dark mode on the sector, category and drilled-in views.
+- 2026-10-12: Phase 6 (T16–T17) on `feature/analytics-polish`. All 17 tasks
+  are done.
+- 2026-10-12: The four KPI cards (investment value, total profit, IRR,
+  passive income) were removed from the Analytics page at the user's
+  request, along with their Analytics-only variants. The Holdings page
+  versions are unchanged. The backend still accepts `instrumentId` on
+  `holdings-summary`, `irr` and `passive-income`, but nothing sends it now.

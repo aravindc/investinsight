@@ -92,7 +92,8 @@ export function AllocationTreemap({
         role={onSelect ? 'button' : 'img'}
         tabIndex={0}
         aria-label={`${group.name}: ${formatGbp(size)}, ${share}`}
-        className={onSelect ? 'cursor-pointer outline-none' : 'outline-none'}
+        // A visible ring on keyboard focus; the SVG has no default one.
+        className={`outline-none [&:focus-visible>rect]:stroke-foreground [&:focus-visible>rect]:[stroke-width:2] ${onSelect ? 'cursor-pointer' : ''}`}
         onMouseEnter={activate}
         onMouseLeave={() => setActive(null)}
         onFocus={activate}

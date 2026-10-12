@@ -102,7 +102,7 @@ export function AllocationHierarchy({
             role="button"
             tabIndex={0}
             aria-label={`Open ${parent.name}`}
-            className="cursor-pointer outline-none"
+            className="cursor-pointer outline-none [&:focus-visible>text]:underline"
             onClick={() => onSelectParent(parent.name)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === ' ') {
@@ -136,7 +136,7 @@ export function AllocationHierarchy({
         role="button"
         tabIndex={0}
         aria-label={`${g.name}, ${g.parent}: ${formatGbp(sizeOf(g))}, ${share} of total`}
-        className="cursor-pointer outline-none"
+        className="cursor-pointer outline-none [&:focus-visible>rect]:stroke-foreground [&:focus-visible>rect]:[stroke-width:2]"
         onMouseEnter={activate}
         onMouseLeave={() => setHovered(null)}
         onFocus={activate}
