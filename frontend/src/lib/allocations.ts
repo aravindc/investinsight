@@ -1,5 +1,5 @@
 import { useCallback } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useAccountScope } from '@/lib/account-scope'
 import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import {
@@ -30,6 +30,8 @@ export function useAllocations(groupBy: AllocationGroupBy) {
     queryKey: ['allocations', scopeParam, groupBy, resolvedInstrumentIds],
     queryFn: () => fetchAllocations(scopeParam!, groupBy, resolvedInstrumentIds ?? undefined),
     enabled: !!scopeParam,
+    // Keep the current charts on screen while a new dimension or filter loads.
+    placeholderData: keepPreviousData,
   })
 }
 

@@ -1,4 +1,4 @@
-import { AllocationBreakdown } from '@/components/AllocationBreakdown'
+import { AllocationAnalysis } from '@/components/AllocationAnalysis'
 import { AssetCategoryFilter } from '@/components/AssetCategoryFilter'
 import { AnalyticsIrrCard } from '@/components/IrrCard'
 import { AnalyticsPassiveIncomeCard } from '@/components/PassiveIncomeCard'
@@ -17,7 +17,7 @@ export function AnalyticsPage() {
           <AnalyticsIrrCard />
           <AnalyticsPassiveIncomeCard />
         </div>
-        <AllocationBreakdown />
+        <AllocationAnalysis />
       </div>
     </AnalyticsFilterProvider>
   )
