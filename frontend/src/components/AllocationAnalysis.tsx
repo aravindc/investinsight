@@ -1,7 +1,9 @@
 import { ChevronRight } from 'lucide-react'
+import { AllocationHierarchy } from '@/components/AllocationHierarchy'
 import { AllocationPerformanceChart } from '@/components/AllocationPerformanceChart'
 import { AllocationTable } from '@/components/AllocationTable'
 import { AllocationTreemap } from '@/components/AllocationTreemap'
+import { UnclassifiedCallout } from '@/components/UnclassifiedCallout'
 import {
   Select,
   SelectContent,
@@ -38,6 +40,10 @@ export function AllocationAnalysis() {
       : (data?.groups ?? [])
   const drill = canDrill(dimension) ? view.drillInto : undefined
   const childLabel = dimension === 'sector' ? 'View sub-sectors' : 'View sub-categories'
+  // A sub-level before drilling in shows sub-groups nested in their parents.
+  const parentLabel =
+    dimension === 'sub-sector' ? 'Sector' : dimension === 'sub-category' ? 'Category' : null
+  const nested = parentLabel !== null && parent === null && data?.groupBy === dimension
 
   return (
     <section className="space-y-4" aria-label="Allocation analysis">
@@ -92,19 +98,37 @@ export function AllocationAnalysis() {
           className={`space-y-6 transition-opacity ${isPlaceholderData ? 'opacity-50' : ''}`}
           aria-busy={isPlaceholderData}
         >
-          <div className="grid gap-6 lg:grid-cols-5">
-            <div className="lg:col-span-3">
-              <AllocationTreemap groups={groups} measure={measure} onSelect={drill} />
+          {dimension === 'sub-sector' && <UnclassifiedCallout groups={groups} />}
+          {nested ? (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <div className="lg:col-span-3">
+                <AllocationHierarchy
+                  groups={groups}
+                  measure={measure}
+                  parentLabel={parentLabel}
+                  onSelectParent={(name) => view.drillTo(name)}
+                />
+              </div>
+              <div className="lg:col-span-2">
+                <AllocationPerformanceChart groups={groups} />
+              </div>
             </div>
-            <div className="lg:col-span-2">
-              <AllocationPerformanceChart groups={groups} />
+          ) : (
+            <div className="grid gap-6 lg:grid-cols-5">
+              <div className="lg:col-span-3">
+                <AllocationTreemap groups={groups} measure={measure} onSelect={drill} />
+              </div>
+              <div className="lg:col-span-2">
+                <AllocationPerformanceChart groups={groups} />
+              </div>
             </div>
-          </div>
+          )}
           <AllocationTable
             key={`${dimension}:${measure}`}
             groups={groups}
             measure={measure}
             dimensionLabel={dimensionLabel}
+            parentLabel={nested ? parentLabel : undefined}
             onSelect={drill}
             selectLabel={childLabel}
           />

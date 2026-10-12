@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import {
   Bar,
   BarChart,
@@ -9,6 +10,7 @@ import {
   XAxis,
   YAxis,
 } from 'recharts'
+import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { allocationKey } from '@/lib/allocations'
 import type { Allocation } from '@/lib/api'
@@ -18,8 +20,8 @@ const ROW_HEIGHT = 32
 const AXIS_HEIGHT = 32
 const BAR_SIZE = 14
 const RADIUS = 4
-// Room right of the plot for the label on the longest bar.
-const LABEL_ROOM = 52
+// Past this many rows, show the best and worst half each until expanded.
+const MAX_ROWS = 14
 const POSITIVE = 'var(--color-green-600)'
 const NEGATIVE = 'var(--color-destructive)'
 
@@ -27,6 +29,9 @@ type Row = {
   key: string
   label: string
   gainPercent: number
+  // gainPercent clamped to the axis; differs only for a clipped outlier.
+  plotted: number
+  clipped: boolean
   group: Allocation
 }
 
@@ -49,7 +54,25 @@ function DivergingBar({ x = 0, y = 0, width = 0, height = 0, payload }: ShapePro
     payload.gainPercent >= 0
       ? `M${left},${y} H${right - r} Q${right},${y} ${right},${y + r} V${bottom - r} Q${right},${bottom} ${right - r},${bottom} H${left} Z`
       : `M${right},${y} H${left + r} Q${left},${y} ${left},${y + r} V${bottom - r} Q${left},${bottom} ${left + r},${bottom} H${right} Z`
-  return <path d={d} fill={fill} />
+  if (!payload.clipped) return <path d={d} fill={fill} />
+  // A clipped outlier: a break near its data end, drawn in the surface colour.
+  const bx = payload.gainPercent >= 0 ? right - 14 : left + 10
+  return (
+    <g>
+      <path d={d} fill={fill} />
+      {[0, 5].map((dx) => (
+        <line
+          key={dx}
+          x1={bx + dx}
+          y1={bottom + 1}
+          x2={bx + dx + 4}
+          y2={y - 1}
+          stroke="var(--color-card)"
+          strokeWidth={2}
+        />
+      ))}
+    </g>
+  )
 }
 
 type LabelProps = { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: number | string }
@@ -95,6 +118,19 @@ function PerformanceTooltip({ active, payload }: { active?: boolean; payload?: {
   )
 }
 
+// When the largest bar on a side dwarfs the next (e.g. +3,000% against
+// +80%), it would flatten every other bar; cap that side of the axis just
+// past the runner-up and clip the outlier instead.
+const OUTLIER_FACTOR = 2.5
+
+function axisLimit(magnitudes: number[]): number {
+  const sorted = [...magnitudes].sort((a, b) => b - a)
+  if (sorted.length >= 2 && sorted[0] > OUTLIER_FACTOR * Math.max(sorted[1], 10)) {
+    return Math.max(sorted[1], 10) * 1.3
+  }
+  return sorted[0] ?? 0
+}
+
 // Round tick values (…, -10, 0, 10, 20, …) spanning min..max, about 4 steps.
 function niceTicks(min: number, max: number): number[] {
   const raw = Math.max(max - min, 1) / 4
@@ -109,19 +145,43 @@ function niceTicks(min: number, max: number): number[] {
 
 /** Return on cost per group, diverging from a zero baseline. */
 export function AllocationPerformanceChart({ groups }: { groups: Allocation[] }) {
-  const rows: Row[] = groups
+  const [expanded, setExpanded] = useState(false)
+
+  // Sub-level names repeat across parents (e.g. Unclassified); add the
+  // parent to those so every row is identifiable.
+  const nameCounts = new Map<string, number>()
+  for (const g of groups) nameCounts.set(g.name, (nameCounts.get(g.name) ?? 0) + 1)
+  const allRows: Row[] = groups
     .filter((g) => g.gainPercent !== null)
     .map((g) => ({
       key: allocationKey(g),
-      label: g.name,
+      label: g.parent && nameCounts.get(g.name)! > 1 ? `${g.name} (${g.parent})` : g.name,
       gainPercent: Number(g.gainPercent),
+      plotted: Number(g.gainPercent),
+      clipped: false,
       group: g,
     }))
     .sort((a, b) => b.gainPercent - a.gainPercent)
+  const hi = axisLimit(allRows.filter((r) => r.gainPercent > 0).map((r) => r.gainPercent))
+  const lo = -axisLimit(allRows.filter((r) => r.gainPercent < 0).map((r) => -r.gainPercent))
+  for (const row of allRows) {
+    row.plotted = Math.min(Math.max(row.gainPercent, lo), hi)
+    row.clipped = row.plotted !== row.gainPercent
+  }
+  const truncated = !expanded && allRows.length > MAX_ROWS
+  const rows = truncated
+    ? [...allRows.slice(0, MAX_ROWS / 2), ...allRows.slice(-MAX_ROWS / 2)]
+    : allRows
   const unpriced = groups.filter((g) => g.gainPercent === null)
 
-  const values = rows.map((r) => r.gainPercent)
+  const values = rows.map((r) => r.plotted)
   const ticks = niceTicks(Math.min(0, ...values), Math.max(0, ...values))
+  // A clipped bar runs to the end of the axis.
+  const data = rows.map((r) =>
+    r.clipped ? { ...r, plotted: r.gainPercent > 0 ? ticks.at(-1)! : ticks[0] } : r,
+  )
+  // Room right of the plot for the widest tip label (12px tabular digits).
+  const labelRoom = Math.max(...rows.map((r) => formatSignedPercent(r.gainPercent).length)) * 7.5 + 10
   const labelWidth = Math.min(180, Math.max(...rows.map((r) => r.label.length), 4) * 7 + 12)
 
   return (
@@ -136,7 +196,7 @@ export function AllocationPerformanceChart({ groups }: { groups: Allocation[] })
         ) : (
           <div style={{ height: rows.length * ROW_HEIGHT + AXIS_HEIGHT }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rows} layout="vertical" margin={{ top: 0, right: LABEL_ROOM, bottom: 0, left: 0 }}>
+              <BarChart data={data} layout="vertical" margin={{ top: 0, right: labelRoom, bottom: 0, left: 0 }}>
                 <CartesianGrid horizontal={false} stroke="var(--color-border)" />
                 <XAxis
                   type="number"
@@ -159,11 +219,23 @@ export function AllocationPerformanceChart({ groups }: { groups: Allocation[] })
                 />
                 <ReferenceLine x={0} stroke="var(--color-muted-foreground)" />
                 <Tooltip content={<PerformanceTooltip />} cursor={{ fill: 'var(--color-muted)', opacity: 0.5 }} />
-                <Bar dataKey="gainPercent" barSize={BAR_SIZE} shape={<DivergingBar />} isAnimationActive={false}>
+                <Bar dataKey="plotted" barSize={BAR_SIZE} shape={<DivergingBar />} isAnimationActive={false}>
                   <LabelList dataKey="gainPercent" content={<TipLabel />} />
                 </Bar>
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        )}
+        {allRows.length > MAX_ROWS && (
+          <div className="mt-2 flex items-center justify-between gap-2">
+            <span className="text-muted-foreground text-xs">
+              {truncated
+                ? `Best and worst ${MAX_ROWS / 2} of ${allRows.length}`
+                : `All ${allRows.length}`}
+            </span>
+            <Button variant="ghost" size="sm" onClick={() => setExpanded(!expanded)}>
+              {truncated ? 'Show all' : 'Show fewer'}
+            </Button>
           </div>
         )}
         {unpriced.length > 0 && (
