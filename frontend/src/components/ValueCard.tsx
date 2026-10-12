@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import { fetchHoldingsSummary, type HoldingsSummary } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -66,18 +65,6 @@ export function ValueCard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['holdings-summary', scopeParam],
     queryFn: () => fetchHoldingsSummary(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
-  return <ValueCardView data={data} isLoading={isLoading} error={error} />
-}
-
-export function AnalyticsValueCard() {
-  const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['holdings-summary', scopeParam, resolvedInstrumentIds],
-    queryFn: () => fetchHoldingsSummary(scopeParam!, resolvedInstrumentIds ?? undefined),
     enabled: !!scopeParam,
   })
 

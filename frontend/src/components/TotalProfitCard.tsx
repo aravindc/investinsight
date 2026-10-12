@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import {
   fetchHoldingsSummary,
   fetchMarketValueSeries,
@@ -146,34 +145,6 @@ export function TotalProfitCard() {
   const holdings = useQuery({
     queryKey: ['holdings-summary', scopeParam],
     queryFn: () => fetchHoldingsSummary(scopeParam!),
-    enabled: !!scopeParam,
-  })
-  const marketSeries = useQuery({
-    queryKey: ['market-value-series', scopeParam],
-    queryFn: () => fetchMarketValueSeries(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
-  return (
-    <TotalProfitCardView
-      holdingsData={holdings.data}
-      marketSeriesData={marketSeries.data}
-      isLoading={holdings.isLoading}
-      error={holdings.error}
-    />
-  )
-}
-
-// Note: the daily-change sub-line stays whole-portfolio (unfiltered) here —
-// market-value-series/ShareDeltasForCurrentHoldings isn't extended to
-// accept an instrument filter in this pass. Only the primary profit figure
-// (from holdings-summary) reflects the Analytics category/asset selection.
-export function AnalyticsTotalProfitCard() {
-  const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
-  const holdings = useQuery({
-    queryKey: ['holdings-summary', scopeParam, resolvedInstrumentIds],
-    queryFn: () => fetchHoldingsSummary(scopeParam!, resolvedInstrumentIds ?? undefined),
     enabled: !!scopeParam,
   })
   const marketSeries = useQuery({

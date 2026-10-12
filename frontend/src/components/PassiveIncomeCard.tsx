@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import { fetchPassiveIncome, type PassiveIncome } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
 
@@ -91,18 +90,6 @@ export function PassiveIncomeCard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['passive-income', scopeParam],
     queryFn: () => fetchPassiveIncome(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
-  return <PassiveIncomeCardView data={data} isLoading={isLoading} error={error} />
-}
-
-export function AnalyticsPassiveIncomeCard() {
-  const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['passive-income', scopeParam, resolvedInstrumentIds],
-    queryFn: () => fetchPassiveIncome(scopeParam!, resolvedInstrumentIds ?? undefined),
     enabled: !!scopeParam,
   })
 

@@ -7,7 +7,6 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 import { useAccountScope } from '@/lib/account-scope'
-import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import { fetchPortfolioIrr, type PortfolioIrr } from '@/lib/api'
 
 function IrrCardView({
@@ -82,18 +81,6 @@ export function IrrCard() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['portfolio-irr', scopeParam],
     queryFn: () => fetchPortfolioIrr(scopeParam!),
-    enabled: !!scopeParam,
-  })
-
-  return <IrrCardView data={data} isLoading={isLoading} error={error} />
-}
-
-export function AnalyticsIrrCard() {
-  const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['portfolio-irr', scopeParam, resolvedInstrumentIds],
-    queryFn: () => fetchPortfolioIrr(scopeParam!, resolvedInstrumentIds ?? undefined),
     enabled: !!scopeParam,
   })
 
