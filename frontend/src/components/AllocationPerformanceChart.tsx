@@ -18,6 +18,8 @@ const ROW_HEIGHT = 32
 const AXIS_HEIGHT = 32
 const BAR_SIZE = 14
 const RADIUS = 4
+// Room right of the plot for the label on the longest bar.
+const LABEL_ROOM = 52
 const POSITIVE = 'var(--color-green-600)'
 const NEGATIVE = 'var(--color-destructive)'
 
@@ -52,17 +54,18 @@ function DivergingBar({ x = 0, y = 0, width = 0, height = 0, payload }: ShapePro
 
 type LabelProps = { x?: number | string; y?: number | string; width?: number | string; height?: number | string; value?: number | string }
 
-// Value at the bar tip, outside the bar, in text ink (never the bar colour).
+// Value in text ink (never the bar colour), just right of the bar's right
+// edge: the tip for a gain, the zero baseline for a loss. Left of a loss
+// would collide with the category labels.
 function TipLabel({ x = 0, y = 0, width = 0, height = 0, value }: LabelProps) {
   const v = Number(value)
   const [nx, ny, nw, nh] = [Number(x), Number(y), Number(width), Number(height)]
-  const tip = v >= 0 ? Math.max(nx, nx + nw) : Math.min(nx, nx + nw)
   return (
     <text
-      x={tip + (v >= 0 ? 6 : -6)}
+      x={Math.max(nx, nx + nw) + 6}
       y={ny + nh / 2}
       dominantBaseline="central"
-      textAnchor={v >= 0 ? 'start' : 'end'}
+      textAnchor="start"
       fontSize={12}
       className="fill-foreground tabular-nums"
     >
@@ -92,6 +95,18 @@ function PerformanceTooltip({ active, payload }: { active?: boolean; payload?: {
   )
 }
 
+// Round tick values (…, -10, 0, 10, 20, …) spanning min..max, about 4 steps.
+function niceTicks(min: number, max: number): number[] {
+  const raw = Math.max(max - min, 1) / 4
+  const magnitude = 10 ** Math.floor(Math.log10(raw))
+  const step = [1, 2, 2.5, 5, 10].find((m) => m * magnitude >= raw)! * magnitude
+  const ticks: number[] = []
+  for (let t = Math.floor(min / step) * step; t <= Math.ceil(max / step) * step + step / 2; t += step) {
+    ticks.push(Number(t.toFixed(6)))
+  }
+  return ticks
+}
+
 /** Return on cost per group, diverging from a zero baseline. */
 export function AllocationPerformanceChart({ groups }: { groups: Allocation[] }) {
   const rows: Row[] = groups
@@ -106,11 +121,7 @@ export function AllocationPerformanceChart({ groups }: { groups: Allocation[] })
   const unpriced = groups.filter((g) => g.gainPercent === null)
 
   const values = rows.map((r) => r.gainPercent)
-  const min = Math.min(0, ...values)
-  const max = Math.max(0, ...values)
-  // Headroom on each side for the tip labels.
-  const pad = Math.max(max - min, 1) * 0.18
-  const domain: [number, number] = [min < 0 ? min - pad : 0, max > 0 ? max + pad : 0]
+  const ticks = niceTicks(Math.min(0, ...values), Math.max(0, ...values))
   const labelWidth = Math.min(180, Math.max(...rows.map((r) => r.label.length), 4) * 7 + 12)
 
   return (
@@ -125,12 +136,13 @@ export function AllocationPerformanceChart({ groups }: { groups: Allocation[] })
         ) : (
           <div style={{ height: rows.length * ROW_HEIGHT + AXIS_HEIGHT }}>
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={rows} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+              <BarChart data={rows} layout="vertical" margin={{ top: 0, right: LABEL_ROOM, bottom: 0, left: 0 }}>
                 <CartesianGrid horizontal={false} stroke="var(--color-border)" />
                 <XAxis
                   type="number"
-                  domain={domain}
-                  tickFormatter={(v: number) => `${Math.round(v)}%`}
+                  domain={[ticks[0], ticks.at(-1)!]}
+                  ticks={ticks}
+                  tickFormatter={(v: number) => `${v}%`}
                   tick={{ fontSize: 12, fill: 'var(--color-muted-foreground)' }}
                   axisLine={false}
                   tickLine={false}
