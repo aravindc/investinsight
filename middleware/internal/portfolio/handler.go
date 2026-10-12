@@ -28,6 +28,8 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/market-value-series", h.marketValueSeries)
 	router.GET("/portfolio/sector-allocations", h.sectorAllocations)
 	router.GET("/portfolio/allocations", h.allocations)
+	router.GET("/portfolio/allocation-matrix", h.allocationMatrix)
+	router.GET("/portfolio/allocation-series", h.allocationSeries)
 	router.GET("/portfolio/irr", h.portfolioIRR)
 	router.GET("/portfolio/passive-income", h.passiveIncome)
 	router.GET("/portfolio/asset-categories", h.assetCategories)
@@ -203,6 +205,65 @@ func (h *Handler) allocations(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, allocations)
+}
+
+func (h *Handler) allocationMatrix(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rowsBy, err := ParseGroupBy(c.Query("rows"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	colsBy, err := ParseGroupBy(c.Query("cols"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if rowsBy == colsBy {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "rows and cols must be different dimensions"})
+		return
+	}
+	matrix, err := h.summary.AllocationMatrix(c.Request.Context(), scope, filter, rowsBy, colsBy)
+	if err != nil {
+		h.log.Error("failed to compute allocation matrix", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load allocation matrix"})
+		return
+	}
+	c.JSON(http.StatusOK, matrix)
+}
+
+func (h *Handler) allocationSeries(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	filter, err := parseInstrumentFilter(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	groupBy, err := ParseGroupBy(c.DefaultQuery("groupBy", string(GroupBySector)))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	series, err := h.summary.AllocationSeries(c.Request.Context(), scope, filter, groupBy)
+	if err != nil {
+		h.log.Error("failed to compute allocation series", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load allocation series"})
+		return
+	}
+	c.JSON(http.StatusOK, series)
 }
 
 func (h *Handler) passiveIncome(c *gin.Context) {

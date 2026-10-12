@@ -456,12 +456,36 @@ func computeIRR(cashFlows []CashFlow, terminalValueGBP decimal.Decimal) (float64
 // same way a permanently unpriceable instrument (delisted/unmapped symbol)
 // is omitted from every day's sum in HoldingsSummary.
 func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]ValuePoint, error) {
-	deltas, err := s.repo.ShareDeltasForCurrentHoldings(ctx, scope)
+	series := make([]ValuePoint, 0)
+	err := s.walkDailyValues(ctx, scope,
+		func(uuid.UUID) (string, bool) { return "", true },
+		func(day time.Time, totals map[string]decimal.Decimal) {
+			series = append(series, ValuePoint{Date: day.Format("2006-01-02"), ValueGBP: totals[""].Round(2)})
+		})
 	if err != nil {
 		return nil, err
 	}
+	return series, nil
+}
+
+// walkDailyValues reconstructs each day's value of currently-held
+// instruments (see MarketValueSeries for the coverage caveats), summed
+// into buckets: keyOf names an instrument's bucket, or excludes it by
+// returning false. visit is called once per day, in date order, with that
+// day's unrounded bucket totals; buckets with nothing held or priced that
+// day are absent. The map is reused between calls.
+func (s *SummaryService) walkDailyValues(
+	ctx context.Context,
+	scope Scope,
+	keyOf func(uuid.UUID) (string, bool),
+	visit func(day time.Time, totals map[string]decimal.Decimal),
+) error {
+	deltas, err := s.repo.ShareDeltasForCurrentHoldings(ctx, scope)
+	if err != nil {
+		return err
+	}
 	if len(deltas) == 0 {
-		return []ValuePoint{}, nil
+		return nil
 	}
 
 	byInstrument := make(map[uuid.UUID][]ShareDelta)
@@ -473,12 +497,25 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 		byInstrument[d.InstrumentID] = append(byInstrument[d.InstrumentID], d)
 	}
 
+	keys := make(map[uuid.UUID]string, len(instrumentIDs))
+	included := instrumentIDs[:0:0]
+	for _, id := range instrumentIDs {
+		if key, ok := keyOf(id); ok {
+			keys[id] = key
+			included = append(included, id)
+		}
+	}
+	instrumentIDs = included
+	if len(instrumentIDs) == 0 {
+		return nil
+	}
+
 	earliestPriceDate, err := s.prices.EarliestPriceDate(ctx, instrumentIDs)
 	if err != nil {
-		return nil, err
+		return err
 	}
 	if earliestPriceDate.IsZero() {
-		return []ValuePoint{}, nil // no held instrument has any price data
+		return nil // no held instrument has any price data
 	}
 	// Normalize to the time.UTC location: dates scanned from Postgres come
 	// back in a fixed +0000 zone that is NOT time.UTC, so time.Time values
@@ -509,7 +546,7 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 
 		prices, err := s.prices.PricesByDate(ctx, id, coverageStart, now)
 		if err != nil {
-			return nil, err
+			return err
 		}
 
 		states[id] = &instrumentState{deltas: instDeltas, prices: prices}
@@ -536,14 +573,14 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 		}
 		rates, err := s.prices.FXRateSeries(ctx, currency, coverageStart, now)
 		if err != nil {
-			return nil, err
+			return err
 		}
 		fxSeriesByCurrency[currency] = rates
 	}
 
-	series := make([]ValuePoint, 0)
+	totals := make(map[string]decimal.Decimal)
 	for day := coverageStart; !day.After(now); day = day.AddDate(0, 0, 1) {
-		total := decimal.Zero
+		clear(totals)
 
 		for _, id := range instrumentIDs {
 			st := states[id]
@@ -562,7 +599,7 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 				if !st.havePrice {
 					continue // instrument not yet priced on/before this day
 				}
-				total = total.Add(st.runningShare.Mul(st.lastPrice))
+				totals[keys[id]] = totals[keys[id]].Add(st.runningShare.Mul(st.lastPrice))
 				continue
 			}
 
@@ -573,13 +610,13 @@ func (s *SummaryService) MarketValueSeries(ctx context.Context, scope Scope) ([]
 			st.lastPrice = gbpPrice
 			st.havePrice = true
 
-			total = total.Add(st.runningShare.Mul(st.lastPrice))
+			totals[keys[id]] = totals[keys[id]].Add(st.runningShare.Mul(st.lastPrice))
 		}
 
-		series = append(series, ValuePoint{Date: day.Format("2006-01-02"), ValueGBP: total.Round(2)})
+		visit(day, totals)
 	}
 
-	return series, nil
+	return nil
 }
 
 // priceToGBP converts a stored price to GBP for a given day: pence-based

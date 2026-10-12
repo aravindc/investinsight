@@ -172,6 +172,16 @@ export type AllocationFigures = {
   gainPercent: string | null
   trailingYearDividendsGbp: string
   yieldPercent: string | null
+  // The priced holding with the most value, and its share of the group.
+  largestHolding: { name: string; ticker: string; sharePercent: string } | null
+  // How many equal-sized holdings would be as concentrated (1 / Σ weight²).
+  effectiveHoldings: string | null
+}
+
+export type AllocationGroup = {
+  name: string
+  parent: string | null
+  unclassified: boolean
 }
 
 export type Allocation = AllocationFigures & {
@@ -196,6 +206,49 @@ export function fetchAllocations(
   instrumentIds?: string[],
 ) {
   return fetchJson<Allocations>('/portfolio/allocations', {
+    scope: scopeParam,
+    groupBy,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
+}
+
+export type AllocationMatrix = {
+  rowsBy: AllocationGroupBy
+  colsBy: AllocationGroupBy
+  rows: AllocationGroup[]
+  cols: AllocationGroup[]
+  // Non-empty combinations only; row and col index into rows and cols.
+  cells: (AllocationFigures & { row: number; col: number; sharePercent: string })[]
+  totals: AllocationFigures
+}
+
+export function fetchAllocationMatrix(
+  scopeParam: string,
+  rows: AllocationGroupBy,
+  cols: AllocationGroupBy,
+  instrumentIds?: string[],
+) {
+  return fetchJson<AllocationMatrix>('/portfolio/allocation-matrix', {
+    scope: scopeParam,
+    rows,
+    cols,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
+}
+
+// Month-end market value per group (plus today), values aligned with groups.
+export type AllocationSeries = {
+  groupBy: AllocationGroupBy
+  groups: AllocationGroup[]
+  points: { date: string; valuesGbp: string[] }[]
+}
+
+export function fetchAllocationSeries(
+  scopeParam: string,
+  groupBy: AllocationGroupBy,
+  instrumentIds?: string[],
+) {
+  return fetchJson<AllocationSeries>('/portfolio/allocation-series', {
     scope: scopeParam,
     groupBy,
     ...(instrumentIds ? { instrumentId: instrumentIds } : {}),

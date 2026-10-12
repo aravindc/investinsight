@@ -43,6 +43,20 @@ type AllocationFigures struct {
 	GainPercent              *decimal.Decimal `json:"gainPercent"`
 	TrailingYearDividendsGBP decimal.Decimal  `json:"trailingYearDividendsGbp"`
 	YieldPercent             *decimal.Decimal `json:"yieldPercent"`
+	// LargestHolding is the priced holding with the most market value, and
+	// its share of this group's (priced) market value.
+	LargestHolding *HoldingShare `json:"largestHolding"`
+	// EffectiveHoldings is how many equally sized holdings would give the
+	// same concentration (1 / Σ weight², by market value): 1 means one
+	// holding is everything, n means n equal holdings. Nil without a priced
+	// market value.
+	EffectiveHoldings *decimal.Decimal `json:"effectiveHoldings"`
+}
+
+type HoldingShare struct {
+	Name         string          `json:"name"`
+	Ticker       string          `json:"ticker"`
+	SharePercent decimal.Decimal `json:"sharePercent"`
 }
 
 // Allocation is one group of current holdings. Parent is the sector or
@@ -86,6 +100,9 @@ type figureTotals struct {
 	invested    decimal.Decimal
 	marketValue decimal.Decimal
 	dividends   decimal.Decimal
+	// Priced holdings' market values, for concentration.
+	values  []decimal.Decimal
+	largest *pricedHolding
 }
 
 func (t *figureTotals) add(h pricedHolding, dividends decimal.Decimal) {
@@ -94,6 +111,10 @@ func (t *figureTotals) add(h pricedHolding, dividends decimal.Decimal) {
 	t.dividends = t.dividends.Add(dividends)
 	if h.Priced {
 		t.marketValue = t.marketValue.Add(h.MarketValueGBP)
+		t.values = append(t.values, h.MarketValueGBP)
+		if t.largest == nil || h.MarketValueGBP.GreaterThan(t.largest.MarketValueGBP) {
+			t.largest = &h
+		}
 	} else {
 		t.unpriced++
 	}
@@ -107,6 +128,21 @@ func (t *figureTotals) figures() AllocationFigures {
 		InvestedGBP:              t.invested.Round(2),
 		MarketValueGBP:           t.marketValue.Round(2),
 		TrailingYearDividendsGBP: t.dividends.Round(2),
+	}
+	if t.marketValue.IsPositive() {
+		sumSquares := decimal.Zero
+		for _, v := range t.values {
+			w := v.Div(t.marketValue)
+			sumSquares = sumSquares.Add(w.Mul(w))
+		}
+		if sumSquares.IsPositive() {
+			f.EffectiveHoldings = decimalPtr(decimal.NewFromInt(1).Div(sumSquares).Round(1))
+		}
+		f.LargestHolding = &HoldingShare{
+			Name:         t.largest.Name,
+			Ticker:       t.largest.Ticker,
+			SharePercent: t.largest.MarketValueGBP.Div(t.marketValue).Mul(hundred).Round(2),
+		}
 	}
 	if t.unpriced > 0 {
 		return f
