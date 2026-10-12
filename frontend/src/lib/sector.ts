@@ -37,7 +37,7 @@ const SECTOR_ORDER = [
   'Other',
 ] as const
 
-const CHART_COLORS = [
+export const CHART_COLORS = [
   'var(--color-chart-1)',
   'var(--color-chart-2)',
   'var(--color-chart-3)',

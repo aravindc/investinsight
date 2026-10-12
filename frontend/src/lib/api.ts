@@ -160,6 +160,48 @@ export function fetchSectorAllocations(scopeParam: string) {
   return fetchJson<SectorAllocation[]>('/portfolio/sector-allocations', { scope: scopeParam })
 }
 
+export type AllocationGroupBy = 'sector' | 'sub-sector' | 'category' | 'sub-category'
+
+// Gain and yield are null unless every holding in the group was priced.
+export type AllocationFigures = {
+  instrumentCount: number
+  unpricedCount: number
+  investedGbp: string
+  marketValueGbp: string
+  gainGbp: string | null
+  gainPercent: string | null
+  trailingYearDividendsGbp: string
+  yieldPercent: string | null
+}
+
+export type Allocation = AllocationFigures & {
+  name: string
+  // The sector or category a sub-sector or sub-category belongs to; null at
+  // the top level. Sub-level names are only unique within their parent.
+  parent: string | null
+  // A holding with no sub-sector, grouped as "Unclassified" under its sector.
+  unclassified: boolean
+  sharePercent: string
+}
+
+export type Allocations = {
+  groupBy: AllocationGroupBy
+  totals: AllocationFigures
+  groups: Allocation[]
+}
+
+export function fetchAllocations(
+  scopeParam: string,
+  groupBy: AllocationGroupBy,
+  instrumentIds?: string[],
+) {
+  return fetchJson<Allocations>('/portfolio/allocations', {
+    scope: scopeParam,
+    groupBy,
+    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
+  })
+}
+
 export function fetchMonthlyDividends(scopeParam: string) {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends', { scope: scopeParam })
 }
