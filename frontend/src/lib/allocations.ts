@@ -1,7 +1,6 @@
 import { useCallback } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { useAccountScope } from '@/lib/account-scope'
-import { useAnalyticsFilter } from '@/lib/analytics-filter'
 import {
   fetchAllocationMatrix,
   fetchAllocations,
@@ -24,15 +23,14 @@ export function isDimension(value: string | null): value is AllocationGroupBy {
   return DIMENSIONS.some((d) => d.value === value)
 }
 
-/** Allocations for the current account scope and Analytics filter. */
+/** Allocations for the current account scope. */
 export function useAllocations(groupBy: AllocationGroupBy, enabled = true) {
   const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
   return useQuery({
-    queryKey: ['allocations', scopeParam, groupBy, resolvedInstrumentIds],
-    queryFn: () => fetchAllocations(scopeParam!, groupBy, resolvedInstrumentIds ?? undefined),
+    queryKey: ['allocations', scopeParam, groupBy],
+    queryFn: () => fetchAllocations(scopeParam!, groupBy),
     enabled: !!scopeParam && enabled,
-    // Keep the current charts on screen while a new dimension or filter loads.
+    // Keep the current charts on screen while a new dimension loads.
     placeholderData: keepPreviousData,
   })
 }
@@ -56,26 +54,23 @@ export function needsClassifying(a: Allocation, groupBy: AllocationGroupBy): boo
   }
 }
 
-/** Holdings cross-tabulated by two dimensions, for the current scope and filter. */
+/** Holdings cross-tabulated by two dimensions, for the current scope. */
 export function useAllocationMatrix(rows: AllocationGroupBy, cols: AllocationGroupBy) {
   const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
   return useQuery({
-    queryKey: ['allocation-matrix', scopeParam, rows, cols, resolvedInstrumentIds],
-    queryFn: () =>
-      fetchAllocationMatrix(scopeParam!, rows, cols, resolvedInstrumentIds ?? undefined),
+    queryKey: ['allocation-matrix', scopeParam, rows, cols],
+    queryFn: () => fetchAllocationMatrix(scopeParam!, rows, cols),
     enabled: !!scopeParam,
     placeholderData: keepPreviousData,
   })
 }
 
-/** Month-end value per group, for the current scope and filter. */
+/** Month-end value per group, for the current scope. */
 export function useAllocationSeries(groupBy: AllocationGroupBy) {
   const { scopeParam } = useAccountScope()
-  const { resolvedInstrumentIds } = useAnalyticsFilter()
   return useQuery({
-    queryKey: ['allocation-series', scopeParam, groupBy, resolvedInstrumentIds],
-    queryFn: () => fetchAllocationSeries(scopeParam!, groupBy, resolvedInstrumentIds ?? undefined),
+    queryKey: ['allocation-series', scopeParam, groupBy],
+    queryFn: () => fetchAllocationSeries(scopeParam!, groupBy),
     enabled: !!scopeParam,
     placeholderData: keepPreviousData,
   })

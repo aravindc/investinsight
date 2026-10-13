@@ -302,3 +302,12 @@ the end of each session, and add a dated line to the log at the bottom.
   request, along with their Analytics-only variants. The Holdings page
   versions are unchanged. The backend still accepts `instrumentId` on
   `holdings-summary`, `irr` and `passive-income`, but nothing sends it now.
+- 2026-10-12: At the user's request, the Analytics filters were removed
+  entirely, so the page always covers the whole account or household. A
+  draft two-filter version (sector or asset, and category or sub-category,
+  with And/Or) was discarded before it was committed. Removed on the
+  frontend: `AssetCategoryFilter`, `lib/analytics-filter.tsx`,
+  `fetchAssetCategories`, and the `instrumentIds` argument on the API
+  helpers. The backend still accepts `instrumentId` on the allocation,
+  summary, IRR and passive-income endpoints, and still serves
+  `/portfolio/asset-categories`, but nothing calls these now.

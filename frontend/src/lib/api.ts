@@ -71,17 +71,6 @@ export type PassiveIncome = {
   changePercent: string | null
 }
 
-export type AssetOption = {
-  instrumentId: string
-  ticker: string
-  name: string
-}
-
-export type AssetCategory = {
-  sector: string
-  instruments: AssetOption[]
-}
-
 export type HoldingRow = {
   instrumentId: string
   ticker: string
@@ -137,11 +126,8 @@ export function fetchTransactions(scopeParam: string) {
   return fetchJson<PortfolioTransaction[]>('/transactions', { scope: scopeParam })
 }
 
-export function fetchHoldingsSummary(scopeParam: string, instrumentIds?: string[]) {
-  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary', {
-    scope: scopeParam,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
+export function fetchHoldingsSummary(scopeParam: string) {
+  return fetchJson<HoldingsSummary>('/portfolio/holdings-summary', { scope: scopeParam })
 }
 
 export function fetchDividendsSummary(scopeParam: string) {
@@ -200,16 +186,8 @@ export type Allocations = {
   groups: Allocation[]
 }
 
-export function fetchAllocations(
-  scopeParam: string,
-  groupBy: AllocationGroupBy,
-  instrumentIds?: string[],
-) {
-  return fetchJson<Allocations>('/portfolio/allocations', {
-    scope: scopeParam,
-    groupBy,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
+export function fetchAllocations(scopeParam: string, groupBy: AllocationGroupBy) {
+  return fetchJson<Allocations>('/portfolio/allocations', { scope: scopeParam, groupBy })
 }
 
 export type AllocationMatrix = {
@@ -226,14 +204,8 @@ export function fetchAllocationMatrix(
   scopeParam: string,
   rows: AllocationGroupBy,
   cols: AllocationGroupBy,
-  instrumentIds?: string[],
 ) {
-  return fetchJson<AllocationMatrix>('/portfolio/allocation-matrix', {
-    scope: scopeParam,
-    rows,
-    cols,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
+  return fetchJson<AllocationMatrix>('/portfolio/allocation-matrix', { scope: scopeParam, rows, cols })
 }
 
 // Month-end market value per group (plus today), values aligned with groups.
@@ -243,38 +215,20 @@ export type AllocationSeries = {
   points: { date: string; valuesGbp: string[] }[]
 }
 
-export function fetchAllocationSeries(
-  scopeParam: string,
-  groupBy: AllocationGroupBy,
-  instrumentIds?: string[],
-) {
-  return fetchJson<AllocationSeries>('/portfolio/allocation-series', {
-    scope: scopeParam,
-    groupBy,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
+export function fetchAllocationSeries(scopeParam: string, groupBy: AllocationGroupBy) {
+  return fetchJson<AllocationSeries>('/portfolio/allocation-series', { scope: scopeParam, groupBy })
 }
 
 export function fetchMonthlyDividends(scopeParam: string) {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends', { scope: scopeParam })
 }
 
-export function fetchPortfolioIrr(scopeParam: string, instrumentIds?: string[]) {
-  return fetchJson<PortfolioIrr>('/portfolio/irr', {
-    scope: scopeParam,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
+export function fetchPortfolioIrr(scopeParam: string) {
+  return fetchJson<PortfolioIrr>('/portfolio/irr', { scope: scopeParam })
 }
 
-export function fetchPassiveIncome(scopeParam: string, instrumentIds?: string[]) {
-  return fetchJson<PassiveIncome>('/portfolio/passive-income', {
-    scope: scopeParam,
-    ...(instrumentIds ? { instrumentId: instrumentIds } : {}),
-  })
-}
-
-export function fetchAssetCategories(scopeParam: string) {
-  return fetchJson<AssetCategory[]>('/portfolio/asset-categories', { scope: scopeParam })
+export function fetchPassiveIncome(scopeParam: string) {
+  return fetchJson<PassiveIncome>('/portfolio/passive-income', { scope: scopeParam })
 }
 
 export function fetchHoldingsTable(scopeParam: string) {
