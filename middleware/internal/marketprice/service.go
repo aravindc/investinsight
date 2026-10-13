@@ -33,10 +33,18 @@ type Service struct {
 
 	liveCacheMu sync.Mutex
 	liveCache   map[uuid.UUID]liveCacheEntry
+
+	dividendDates dividendDatesCache
 }
 
 func NewService(repo *Repository, yahoo *YahooClient, logger *zap.Logger) *Service {
-	return &Service{repo: repo, yahoo: yahoo, logger: logger, liveCache: make(map[uuid.UUID]liveCacheEntry)}
+	return &Service{
+		repo:          repo,
+		yahoo:         yahoo,
+		logger:        logger,
+		liveCache:     make(map[uuid.UUID]liveCacheEntry),
+		dividendDates: dividendDatesCache{entries: make(map[string]dividendDatesEntry)},
+	}
 }
 
 // BackfillResult summarizes the outcome of a backfill run.

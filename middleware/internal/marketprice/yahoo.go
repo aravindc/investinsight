@@ -13,10 +13,12 @@ const chartBaseURL = "https://query1.finance.yahoo.com/v8/finance/chart/"
 
 type YahooClient struct {
 	httpClient *http.Client
+	// For endpoints that need a cookie and crumb (see dividends.go).
+	session *yahooSession
 }
 
 func NewYahooClient() *YahooClient {
-	return &YahooClient{httpClient: &http.Client{Timeout: 15 * time.Second}}
+	return &YahooClient{httpClient: &http.Client{Timeout: 15 * time.Second}, session: newYahooSession()}
 }
 
 // DailyClose is one day's closing price in the instrument's quote currency.

@@ -30,6 +30,7 @@ func (h *Handler) RegisterRoutes(router gin.IRouter) {
 	router.GET("/portfolio/allocations", h.allocations)
 	router.GET("/portfolio/allocation-matrix", h.allocationMatrix)
 	router.GET("/portfolio/allocation-series", h.allocationSeries)
+	router.GET("/portfolio/dividend-calendar", h.dividendCalendar)
 	router.GET("/portfolio/irr", h.portfolioIRR)
 	router.GET("/portfolio/passive-income", h.passiveIncome)
 	router.GET("/portfolio/asset-categories", h.assetCategories)
@@ -264,6 +265,21 @@ func (h *Handler) allocationSeries(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, series)
+}
+
+func (h *Handler) dividendCalendar(c *gin.Context) {
+	scope, err := parseScope(c)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	calendar, err := h.summary.DividendCalendar(c.Request.Context(), scope)
+	if err != nil {
+		h.log.Error("failed to compute dividend calendar", zap.Error(err))
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load dividend calendar"})
+		return
+	}
+	c.JSON(http.StatusOK, calendar)
 }
 
 func (h *Handler) passiveIncome(c *gin.Context) {

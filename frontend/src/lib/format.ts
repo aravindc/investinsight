@@ -16,3 +16,16 @@ export function formatGbp(value: string | number) {
 export function maskValue(value: string | number) {
   return areValuesHidden() ? MASKED_VALUE : value
 }
+
+const compactGbpFormatter = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'GBP',
+  notation: 'compact',
+  maximumFractionDigits: 1,
+})
+
+/** Short GBP for chart axes (£950, £1.2K); masked when values are hidden. */
+export function formatGbpCompact(value: string | number) {
+  if (areValuesHidden()) return `£${MASKED_VALUE}`
+  return compactGbpFormatter.format(Number(value))
+}
