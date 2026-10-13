@@ -22,8 +22,9 @@ import (
 const pricingConcurrency = 16
 
 // PriceLookup resolves current and historical instrument prices in GBP,
-// implemented by *marketprice.Service.
+// and announced dividend dates, implemented by *marketprice.Service.
 type PriceLookup interface {
+	DividendDates(ctx context.Context, inst marketprice.Instrument) (*marketprice.DividendDates, error)
 	ClosePriceGBP(ctx context.Context, inst marketprice.Instrument, date time.Time) (decimal.Decimal, error)
 	PricesByDate(ctx context.Context, instrumentID uuid.UUID, from, to time.Time) (map[time.Time]marketprice.StoredPrice, error)
 	EarliestPriceDate(ctx context.Context, instrumentIDs []uuid.UUID) (time.Time, error)

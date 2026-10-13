@@ -652,3 +652,42 @@ func (r *Repository) CurrentHoldingsCashFlows(ctx context.Context, scope Scope, 
 	}
 	return flows, rows.Err()
 }
+
+// DividendPayment is the dividend income one instrument paid on one day.
+type DividendPayment struct {
+	InstrumentID uuid.UUID
+	Ticker       string
+	Name         string
+	Date         time.Time
+	AmountGBP    decimal.Decimal
+}
+
+// DividendPayments lists dividend income received on or after from, per
+// instrument per day, oldest first.
+func (r *Repository) DividendPayments(ctx context.Context, scope Scope, from time.Time) ([]DividendPayment, error) {
+	scopeFilter, scopeArg := buildScopeFilter(scope, "pt", 1)
+	query := fmt.Sprintf(`
+		SELECT i.id, i.ticker, i.name, DATE(pt.timestamp) AS day, SUM(pt.net_amount_gbp)
+		FROM portfolio_transactions pt
+		JOIN instruments i ON i.id = pt.instrument_id
+		WHERE pt.entry_type = 'DIVIDEND' AND pt.timestamp >= $2 AND %s
+		GROUP BY i.id, i.ticker, i.name, day
+		ORDER BY day, i.ticker;`, scopeFilter)
+
+	rows, err := r.db.QueryContext(ctx, query, scopeArg, from)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var payments []DividendPayment
+	for rows.Next() {
+		var p DividendPayment
+		if err := rows.Scan(&p.InstrumentID, &p.Ticker, &p.Name, &p.Date, &p.AmountGBP); err != nil {
+			return nil, err
+		}
+		p.Date = p.Date.UTC()
+		payments = append(payments, p)
+	}
+	return payments, rows.Err()
+}

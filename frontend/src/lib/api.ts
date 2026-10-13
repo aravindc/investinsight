@@ -219,6 +219,33 @@ export function fetchAllocationSeries(scopeParam: string, groupBy: AllocationGro
   return fetchJson<AllocationSeries>('/portfolio/allocation-series', { scope: scopeParam, groupBy })
 }
 
+export type DividendStatus = 'paid' | 'announced' | 'estimated'
+
+// One dividend payment. date is the payment date (actual, announced or
+// estimated); amountGbp is null for an announcement with no past payment
+// to estimate it from; exDate is the announced ex-dividend date.
+export type DividendEvent = {
+  date: string
+  instrumentId: string
+  ticker: string
+  name: string
+  amountGbp: string | null
+  status: DividendStatus
+  exDate: string | null
+}
+
+// Paid dividends in the year before today, expected ones in the year after.
+export type DividendCalendar = {
+  today: string
+  from: string
+  to: string
+  events: DividendEvent[]
+}
+
+export function fetchDividendCalendar(scopeParam: string) {
+  return fetchJson<DividendCalendar>('/portfolio/dividend-calendar', { scope: scopeParam })
+}
+
 export function fetchMonthlyDividends(scopeParam: string) {
   return fetchJson<MonthlyDividend[]>('/portfolio/monthly-dividends', { scope: scopeParam })
 }
