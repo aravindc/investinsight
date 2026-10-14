@@ -28,7 +28,7 @@ export function TotalValueCard() {
     staleTime: 5 * 60_000,
   })
 
-  // Same query key as CashIsaCard.
+  // Same query keys as CashCard.
   const cashIsas = useQuery({
     queryKey: ['cash-isas', scopeParam],
     queryFn: () => fetchCashIsas(scopeParam!),
@@ -59,9 +59,8 @@ export function TotalValueCard() {
               <HelpCircle className="text-muted-foreground size-3.5" />
             </TooltipTrigger>
             <TooltipContent className="max-w-xs">
-              Investment value plus uninvested cash (including cash sitting in pies) and Cash ISAs.
-              Cash comes from Trading 212 for connected accounts, refreshed at most hourly and
-              after each sync.
+              Investment value plus cash: uninvested cash, cash in pies and Cash ISAs. The Cash
+              card breaks it down.
             </TooltipContent>
           </Tooltip>
         </div>
@@ -70,32 +69,7 @@ export function TotalValueCard() {
         {!!error && (
           <p className="text-destructive mt-3 text-sm">Failed to load portfolio value.</p>
         )}
-        {h && c && isa && total !== null && (
-          <>
-            <p className="mt-3 text-3xl font-semibold">{formatGbp(total)}</p>
-            <p className="text-muted-foreground mt-1 text-sm">
-              {formatGbp(Number(c.cashGbp) + Number(c.cashInPiesGbp))} cash
-              {Number(c.cashInPiesGbp) !== 0 && <> ({formatGbp(c.cashInPiesGbp)} in pies)</>}
-              {isaValue !== 0 && <> · {formatGbp(isaValue)} Cash ISA</>}
-              {c.oldestFetchedAt && (
-                <>
-                  {' '}
-                  · as of{' '}
-                  {new Date(c.oldestFetchedAt).toLocaleTimeString([], {
-                    hour: '2-digit',
-                    minute: '2-digit',
-                  })}
-                </>
-              )}
-            </p>
-            {c.accountsExcluded.length > 0 && (
-              <p className="text-destructive mt-1 text-xs">
-                Cash not included for{' '}
-                {c.accountsExcluded.map((a) => `${a.name} (${a.reason})`).join(', ')}.
-              </p>
-            )}
-          </>
-        )}
+        {total !== null && <p className="mt-3 text-3xl font-semibold">{formatGbp(total)}</p>}
       </CardContent>
     </Card>
   )

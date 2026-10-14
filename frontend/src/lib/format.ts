@@ -29,3 +29,15 @@ export function formatGbpCompact(value: string | number) {
   if (areValuesHidden()) return `£${MASKED_VALUE}`
   return compactGbpFormatter.format(Number(value))
 }
+
+const wholeGbpFormatter = new Intl.NumberFormat('en-GB', {
+  style: 'currency',
+  currency: 'GBP',
+  maximumFractionDigits: 0,
+})
+
+/** GBP to the nearest pound (£1,235), for tight breakdown lines. */
+export function formatGbpWhole(value: string | number) {
+  if (areValuesHidden()) return `£${MASKED_VALUE}`
+  return wholeGbpFormatter.format(Number(value))
+}

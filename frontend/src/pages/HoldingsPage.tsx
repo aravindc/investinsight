@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { CashIsaCard } from '@/components/CashIsaCard'
+import { CashCard } from '@/components/CashCard'
 import { HoldingsTable } from '@/components/HoldingsTable'
 import { InvestedValueChart } from '@/components/InvestedValueChart'
 import { IrrCard } from '@/components/IrrCard'
@@ -17,7 +17,7 @@ export function HoldingsPage() {
       <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <TotalValueCard />
         <ValueCard />
-        <CashIsaCard />
+        <CashCard />
         <TotalProfitCard />
         <IrrCard />
         <PassiveIncomeCard />
