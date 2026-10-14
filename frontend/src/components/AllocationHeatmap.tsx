@@ -1,6 +1,14 @@
 import { useState } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { parentDimension } from '@/lib/allocation-view'
 import { allocationKey, DIMENSIONS, useAllocationMatrix } from '@/lib/allocations'
 import type { AllocationGroupBy, AllocationMatrix } from '@/lib/api'
 import { formatGbp } from '@/lib/format'
@@ -25,17 +33,23 @@ function label(name: string, parent: string | null) {
 /**
  * How the current dimension's groups split across another dimension, e.g.
  * how much of each sector is held as stocks, ETFs or investment trusts.
+ * The columns start as defaultColsBy and can be switched to any other
+ * dimension; the parent remounts this when the rows change.
  */
 export function AllocationHeatmap({
   rowsBy,
-  colsBy,
+  defaultColsBy,
   parent,
 }: {
   rowsBy: AllocationGroupBy
-  colsBy: AllocationGroupBy
+  defaultColsBy: AllocationGroupBy
   // Restricts rows to one sector or category when drilled in.
   parent: string | null
 }) {
+  const [colsBy, setColsBy] = useState<AllocationGroupBy>(defaultColsBy)
+  const colOptions = DIMENSIONS.filter((d) => d.value !== rowsBy)
+  // Sub-sector columns against sector rows needn't repeat the sector.
+  const colsNestUnderRows = parentDimension(colsBy) === rowsBy
   const { data, isLoading, error, isPlaceholderData } = useAllocationMatrix(rowsBy, colsBy)
   const [basis, setBasis] = useState<Basis>('row')
   const [inspected, setInspected] = useState<Cell | null>(null)
@@ -51,6 +65,17 @@ export function AllocationHeatmap({
       .map((r, i) => ({ r, i }))
       .filter(({ r }) => parent === null || r.parent === parent)
     const byCell = new Map(data.cells.map((c) => [`${c.row}:${c.col}`, c]))
+    // Columns come sorted by value; when they nest under the rows, group
+    // each row's columns together, in row order, so filled cells step
+    // down diagonally instead of scattering.
+    const rowOrder = new Map(data.rows.map((r, i) => [r.name, i]))
+    const cols = data.cols
+      .map((c, j) => ({ c, j }))
+      .sort((a, b) =>
+        colsNestUnderRows
+          ? (rowOrder.get(a.c.parent ?? '') ?? 0) - (rowOrder.get(b.c.parent ?? '') ?? 0) || a.j - b.j
+          : a.j - b.j,
+      )
     const rowValue = new Map<number, number>()
     const colValue = new Map<number, number>()
     for (const c of data.cells) {
@@ -78,13 +103,13 @@ export function AllocationHeatmap({
                 <th scope="col" className="text-muted-foreground px-2 py-1 text-left font-medium">
                   {rowLabel}
                 </th>
-                {data.cols.map((c) => (
+                {cols.map(({ c }) => (
                   <th
                     key={allocationKey(c)}
                     scope="col"
                     className="text-muted-foreground min-w-14 px-1 py-1 text-center align-bottom font-medium"
                   >
-                    {label(c.name, c.parent)}
+                    {colsNestUnderRows ? c.name : label(c.name, c.parent)}
                   </th>
                 ))}
                 <th scope="col" className="text-muted-foreground px-2 py-1 text-right font-medium">
@@ -101,7 +126,7 @@ export function AllocationHeatmap({
                       <span className="text-muted-foreground font-normal"> · {r.parent}</span>
                     )}
                   </th>
-                  {data.cols.map((c, j) => {
+                  {cols.map(({ c, j }) => {
                     const cell = byCell.get(`${i}:${j}`)
                     if (!cell) {
                       return (
@@ -146,7 +171,7 @@ export function AllocationHeatmap({
                   <th scope="row" className="text-muted-foreground px-2 py-1 text-left font-medium">
                     Of portfolio
                   </th>
-                  {data.cols.map((c, j) => (
+                  {cols.map(({ c, j }) => (
                     <td key={allocationKey(c)} className="px-1 py-1 text-center tabular-nums">
                       {total > 0 ? `${(((colValue.get(j) ?? 0) / total) * 100).toFixed(1)}%` : '—'}
                     </td>
@@ -200,12 +225,29 @@ export function AllocationHeatmap({
             {basis === 'row' ? `as a share of each ${rowLabel.toLowerCase()}` : 'as a share of the portfolio'}
           </p>
         </div>
-        <Tabs value={basis} onValueChange={(v) => setBasis(v as Basis)}>
-          <TabsList>
-            <TabsTrigger value="row">% of {rowLabel.toLowerCase()}</TabsTrigger>
-            <TabsTrigger value="portfolio">% of portfolio</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-muted-foreground flex items-center gap-2 text-xs">
+            Columns
+            <Select value={colsBy} onValueChange={(v) => setColsBy(v as AllocationGroupBy)}>
+              <SelectTrigger className="w-36" aria-label="Columns">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {colOptions.map((d) => (
+                  <SelectItem key={d.value} value={d.value}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+          <Tabs value={basis} onValueChange={(v) => setBasis(v as Basis)}>
+            <TabsList>
+              <TabsTrigger value="row">% of {rowLabel.toLowerCase()}</TabsTrigger>
+              <TabsTrigger value="portfolio">% of portfolio</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </CardHeader>
       <CardContent>{content()}</CardContent>
     </Card>

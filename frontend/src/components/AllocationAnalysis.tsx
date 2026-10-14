@@ -70,8 +70,8 @@ export function AllocationAnalysis() {
   const parentLabel =
     dimension === 'sub-sector' ? 'Sector' : dimension === 'sub-category' ? 'Category' : null
   const nested = parentLabel !== null && parent === null && data?.groupBy === dimension
-  // The heatmap crosses the current dimension with the other family:
-  // sectors by how they're held (sub-category), categories by sector.
+  // The heatmap's default columns are the other family: sectors by how
+  // they're held (sub-category), categories by sector. Its picker switches.
   const crossBy = dimension === 'sector' || dimension === 'sub-sector' ? 'sub-category' : 'sector'
 
   return (
@@ -177,7 +177,12 @@ export function AllocationAnalysis() {
               </div>
             </div>
           )}
-          <AllocationHeatmap rowsBy={dimension} colsBy={crossBy} parent={parent} />
+          <AllocationHeatmap
+            key={dimension}
+            rowsBy={dimension}
+            defaultColsBy={crossBy}
+            parent={parent}
+          />
           <div className="grid gap-6 lg:grid-cols-5">
             <div className="lg:col-span-2">
               <ConcentrationCard
