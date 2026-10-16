@@ -136,6 +136,11 @@ npx shadcn@latest add <component>
 
 Components are written to `src/components/ui`.
 
+The `shadcn` package itself isn't a dependency: it's a CLI, and its one
+runtime piece, the `shadcn/tailwind.css` stylesheet, is copied into
+`src/styles/shadcn-tailwind.css`. If a newer shadcn version changes that
+stylesheet, update the copy by hand.
+
 ## Build
 
 ```sh
