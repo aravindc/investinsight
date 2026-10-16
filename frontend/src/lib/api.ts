@@ -58,6 +58,9 @@ export type MonthlyDividend = {
 export type BackfillResult = {
   instrumentsProcessed: number
   failed: string[]
+  // Logo backfill only: stored logos dropped on a refresh because logo.dev
+  // has none for that instrument.
+  removed?: number
 }
 
 export type PortfolioIrr = {
@@ -270,8 +273,9 @@ export async function backfillMarketPrices() {
   return res.json() as Promise<BackfillResult>
 }
 
-export async function backfillLogos() {
-  const res = await fetch('/api/logos/backfill', { method: 'POST' })
+/** Fetches missing logos; with refresh, re-fetches every instrument's. */
+export async function backfillLogos(refresh = false) {
+  const res = await fetch(`/api/logos/backfill${refresh ? '?refresh=true' : ''}`, { method: 'POST' })
   if (!res.ok) {
     throw new Error(`Logo backfill failed: ${res.status}`)
   }

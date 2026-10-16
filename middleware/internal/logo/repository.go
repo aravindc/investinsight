@@ -27,12 +27,14 @@ type Instrument struct {
 // InstrumentsMissingLogo lists every instrument that doesn't yet have a
 // stored logo row — the set to fetch on each daily backfill run.
 func (r *Repository) InstrumentsMissingLogo(ctx context.Context) ([]Instrument, error) {
-	query := `
+	return r.instruments(ctx, `
 		SELECT i.id, i.ticker, i.base_currency, i.isin
 		FROM instruments i
 		LEFT JOIN instrument_logos l ON l.instrument_id = i.id
-		WHERE l.instrument_id IS NULL;`
+		WHERE l.instrument_id IS NULL;`)
+}
 
+func (r *Repository) instruments(ctx context.Context, query string) ([]Instrument, error) {
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
 		return nil, err
@@ -48,6 +50,22 @@ func (r *Repository) InstrumentsMissingLogo(ctx context.Context) ([]Instrument, 
 		instruments = append(instruments, inst)
 	}
 	return instruments, rows.Err()
+}
+
+// AllInstruments lists every instrument, for a refresh of every logo.
+func (r *Repository) AllInstruments(ctx context.Context) ([]Instrument, error) {
+	return r.instruments(ctx, `SELECT i.id, i.ticker, i.base_currency, i.isin FROM instruments i;`)
+}
+
+// DeleteLogo removes instrumentID's stored logo, if any, so the frontend
+// falls back to its initials badge.
+func (r *Repository) DeleteLogo(ctx context.Context, instrumentID uuid.UUID) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `DELETE FROM instrument_logos WHERE instrument_id = $1;`, instrumentID)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n > 0, err
 }
 
 // UpsertLogo stores (or replaces) the logo image for instrumentID.
